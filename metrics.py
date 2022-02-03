@@ -1,4 +1,4 @@
-#Created by Adam Goldbraikh - Scalpel Lab Technion
+# Created by Adam Goldbraikh - Scalpel Lab Technion
 # adapted from: https://github.com/colincsl/TemporalConvolutionalNetworks/blob/master/code/metrics.py
 # parts of the code were adapted from: https://github.com/sj-li/MS-TCN2?utm_source=catalyzex.com
 
@@ -7,8 +7,10 @@ import numpy as np
 import argparse
 from termcolor import colored, cprint
 from sklearn.metrics import f1_score, accuracy_score, recall_score, precision_score, confusion_matrix
-#https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html
-#https://scikit-learn.org/stable/modules/classes.html#module-sklearn.metrics
+
+
+# https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html
+# https://scikit-learn.org/stable/modules/classes.html#module-sklearn.metrics
 
 def read_file(path):
     with open(path, 'r') as f:
@@ -41,23 +43,23 @@ def get_labels_start_end_time(frame_wise_labels, bg_class=["background"]):
 def levenstein(p, y, norm=False):
     m_row = len(p)
     n_col = len(y)
-    D = np.zeros([m_row+1, n_col+1], np.float)
-    for i in range(m_row+1):
+    D = np.zeros([m_row + 1, n_col + 1], np.float)
+    for i in range(m_row + 1):
         D[i, 0] = i
-    for i in range(n_col+1):
+    for i in range(n_col + 1):
         D[0, i] = i
 
-    for j in range(1, n_col+1):
-        for i in range(1, m_row+1):
-            if y[j-1] == p[i-1]:
-                D[i, j] = D[i-1, j-1]
+    for j in range(1, n_col + 1):
+        for i in range(1, m_row + 1):
+            if y[j - 1] == p[i - 1]:
+                D[i, j] = D[i - 1, j - 1]
             else:
-                D[i, j] = min(D[i-1, j] + 1,
-                              D[i, j-1] + 1,
-                              D[i-1, j-1] + 1)
+                D[i, j] = min(D[i - 1, j] + 1,
+                              D[i, j - 1] + 1,
+                              D[i - 1, j - 1] + 1)
 
     if norm:
-        score = (1 - D[-1, -1]/max(m_row, n_col)) * 100
+        score = (1 - D[-1, -1] / max(m_row, n_col)) * 100
     else:
         score = D[-1, -1]
 
@@ -82,7 +84,7 @@ def f_score(recognized, ground_truth, overlap, bg_class=["background"]):
     for j in range(len(p_label)):
         intersection = np.minimum(p_end[j], y_end) - np.maximum(p_start[j], y_start)
         union = np.maximum(p_end[j], y_end) - np.minimum(p_start[j], y_start)
-        IoU = (1.0*intersection / union)*([p_label[j] == y_label[x] for x in range(len(y_label))])
+        IoU = (1.0 * intersection / union) * ([p_label[j] == y_label[x] for x in range(len(y_label))])
         # Get the best scoring segment
         idx = np.array(IoU).argmax()
 
@@ -94,6 +96,7 @@ def f_score(recognized, ground_truth, overlap, bg_class=["background"]):
     fn = len(y_label) - sum(hits)
     return float(tp), float(fp), float(fn)
 
+
 def pars_ground_truth(gt_source):
     contant = []
     for line in gt_source:
@@ -103,20 +106,20 @@ def pars_ground_truth(gt_source):
     return contant
 
 
-def metric_calculation(ground_truth_path,recognition_list,list_of_videos,suffix=""):
+def metric_calculation(ground_truth_path, recognition_list, list_of_videos, suffix=""):
     overlap = [.1, .25, .5]
-    results_dict = {"Acc "+suffix:None, "Edit "+suffix:None,"F1-macro "+suffix:None,
-                    F"F1@{int(overlap[0] * 100) } "+suffix:None, F"F1@{int(overlap[1] * 100) } "+suffix:None,
-                    F"F1@{int(overlap[2] * 100)} "+suffix:None
+    results_dict = {"Acc " + suffix: None, "Edit " + suffix: None, "F1-macro " + suffix: None,
+                    F"F1@{int(overlap[0] * 100)} " + suffix: None, F"F1@{int(overlap[1] * 100)} " + suffix: None,
+                    F"F1@{int(overlap[2] * 100)} " + suffix: None
                     }
     tp, fp, fn = np.zeros(3), np.zeros(3), np.zeros(3)
 
     correct = 0
     total = 0
     edit = 0
-    gt_list =[]
-    all_gt =[]
-    all_recogs =[]
+    gt_list = []
+    all_gt = []
+    all_recogs = []
     for i, seq in enumerate(list_of_videos):
 
         file_ptr = open(ground_truth_path + seq.split('.')[0] + '.txt', 'r')
@@ -125,10 +128,10 @@ def metric_calculation(ground_truth_path,recognition_list,list_of_videos,suffix=
 
         gt_list.append(gt_content)
         recog_content = recognition_list[i]
-        all_gt = all_gt + gt_content[:min(len(gt_content),len(recog_content))]
-        all_recogs = all_recogs + list(recog_content[:min(len(gt_content),len(recog_content))])
+        all_gt = all_gt + gt_content[:min(len(gt_content), len(recog_content))]
+        all_recogs = all_recogs + list(recog_content[:min(len(gt_content), len(recog_content))])
 
-        for i in range(min(len(gt_content),len(recog_content))):
+        for i in range(min(len(gt_content), len(recog_content))):
             total += 1
             if gt_content[i] == recog_content[i]:
                 correct += 1
@@ -142,31 +145,29 @@ def metric_calculation(ground_truth_path,recognition_list,list_of_videos,suffix=
             fn[s] += fn1
 
     color = "yellow"
-    print(colored("Acc: %.4f" % (100*float(correct)/total),color))
+    print(colored("Acc: %.4f" % (100 * float(correct) / total), color))
     f1_macro = f1_score(all_gt, all_recogs, average='macro')
-    results_dict["F1-macro "+suffix] = f1_macro
-    labels = list(set(all_gt+all_recogs))
-    f1_per_class = f1_score(all_gt, all_recogs, average='macro',labels=labels)
+    results_dict["F1-macro " + suffix] = f1_macro
+    labels = list(set(all_gt + all_recogs))
+    f1_per_class = f1_score(all_gt, all_recogs, average='macro', labels=labels)
 
     print(colored("F1-macro: %.4f" % (100 * float(f1_macro)), color))
-    print(colored('Edit: %.4f' % ((1.0*edit)/len(list_of_videos)),color))
-    acc = (100*float(correct)/total)
-    results_dict["Acc "+suffix] = acc
-    edit = ((1.0*edit)/len(list_of_videos))
-    results_dict["Edit "+suffix] = edit
+    print(colored('Edit: %.4f' % ((1.0 * edit) / len(list_of_videos)), color))
+    acc = (100 * float(correct) / total)
+    results_dict["Acc " + suffix] = acc
+    edit = ((1.0 * edit) / len(list_of_videos))
+    results_dict["Edit " + suffix] = edit
     for s in range(len(overlap)):
-        precision = tp[s] / float(tp[s]+fp[s])
-        recall = tp[s] / float(tp[s]+fn[s])
+        precision = tp[s] / float(tp[s] + fp[s])
+        recall = tp[s] / float(tp[s] + fn[s])
 
-        f1 = 2.0 * (precision*recall) / (precision+recall)
+        f1 = 2.0 * (precision * recall) / (precision + recall)
 
-        f1 = np.nan_to_num(f1)*100
+        f1 = np.nan_to_num(f1) * 100
         results_dict[F"F1@{int(overlap[s] * 100)} " + suffix] = f1
-        print(colored('F1@%0.2f: %.4f' % (overlap[s], f1),color))
+        print(colored('F1@%0.2f: %.4f' % (overlap[s], f1), color))
 
     return results_dict, gt_list
-
-
 
 
 def main():
@@ -177,9 +178,9 @@ def main():
 
     args = parser.parse_args()
 
-    ground_truth_path = "./data/"+args.dataset+"/groundTruth/"
-    recog_path = "./results/"+args.dataset+"/split_"+args.split+"/"
-    file_list = "./data/"+args.dataset+"/splits/test.split"+args.split+".bundle"
+    ground_truth_path = "./data/" + args.dataset + "/groundTruth/"
+    recog_path = "./results/" + args.dataset + "/split_" + args.split + "/"
+    file_list = "./data/" + args.dataset + "/splits/test.split" + args.split + ".bundle"
 
     list_of_videos = read_file(file_list).split('\n')[:-1]
 
@@ -210,18 +211,19 @@ def main():
             fp[s] += fp1
             fn[s] += fn1
 
-    print("Acc: %.4f" % (100*float(correct)/total))
-    print('Edit: %.4f' % ((1.0*edit)/len(list_of_videos)))
-    acc = (100*float(correct)/total)
-    edit = ((1.0*edit)/len(list_of_videos))
+    print("Acc: %.4f" % (100 * float(correct) / total))
+    print('Edit: %.4f' % ((1.0 * edit) / len(list_of_videos)))
+    acc = (100 * float(correct) / total)
+    edit = ((1.0 * edit) / len(list_of_videos))
     for s in range(len(overlap)):
-        precision = tp[s] / float(tp[s]+fp[s])
-        recall = tp[s] / float(tp[s]+fn[s])
+        precision = tp[s] / float(tp[s] + fp[s])
+        recall = tp[s] / float(tp[s] + fn[s])
 
-        f1 = 2.0 * (precision*recall) / (precision+recall)
+        f1 = 2.0 * (precision * recall) / (precision + recall)
 
-        f1 = np.nan_to_num(f1)*100
+        f1 = np.nan_to_num(f1) * 100
         print('F1@%0.2f: %.4f' % (overlap[s], f1))
+
 
 if __name__ == '__main__':
     main()

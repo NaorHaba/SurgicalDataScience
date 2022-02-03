@@ -1,4 +1,4 @@
-#Created by Adam Goldbraikh - Scalpel Lab Technion
+# Created by Adam Goldbraikh - Scalpel Lab Technion
 # parts of the code were adapted from: https://github.com/sj-li/MS-TCN2?utm_source=catalyzex.com
 
 from model import *
@@ -8,27 +8,26 @@ import math
 import pandas as pd
 from termcolor import colored, cprint
 
-from metrics import*
+from metrics import *
 import wandb
 from datetime import datetime
 import tqdm
 
 
 class Trainer:
-    def __init__(self, dim, num_classes_list,hidden_dim=64,dropout=0.4,num_layers=3, offline_mode=True, task="gestures", device="cuda",
-                 network='LSTM',debagging=False):
+    def __init__(self, dim, num_classes_list, hidden_dim=64, dropout=0.4, num_layers=3, offline_mode=True,
+                 task="gestures", device="cuda",
+                 network='LSTM', debagging=False):
 
         self.model = MT_RNN_dp(network, input_dim=dim, hidden_dim=hidden_dim, num_classes_list=num_classes_list,
-                            bidirectional=offline_mode, dropout=dropout,num_layers=num_layers)
+                               bidirectional=offline_mode, dropout=dropout, num_layers=num_layers)
 
-
-        self.debagging =debagging
+        self.debugging = debagging
         self.network = network
         self.device = device
         self.ce = nn.CrossEntropyLoss(ignore_index=-100)
         self.num_classes_list = num_classes_list
-        self.task =task
-
+        self.task = task
 
     def train(self, save_dir, batch_gen, num_epochs, batch_size, learning_rate, eval_dict, args):
 
@@ -40,8 +39,8 @@ class Trainer:
         print(args.dataset + " " + args.group + " " + args.dataset + " dataset " + "split: " + args.split)
 
         if args.upload is True:
-            wandb.init(project=args.project, group= args.group,
-                       name="split: " + args.split,
+            wandb.init(project=args.project, group=args.group,
+                       name="split: " + args.split, entity=args.entity,  # FIXME: we added entity
                        reinit=True)
             delattr(args, 'split')
             wandb.config.update(args)
@@ -71,7 +70,6 @@ class Trainer:
                     loss += self.ce(p.transpose(2, 1).contiguous().view(-1, self.num_classes_list[0]),
                                     batch_target_gestures.view(-1))
 
-
                 epoch_loss += loss.item()
                 loss.backward()
                 optimizer.step()
@@ -85,7 +83,7 @@ class Trainer:
 
             batch_gen.reset()
             pbar.close()
-            if not self.debagging:
+            if not self.debugging:
                 torch.save(self.model.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".model")
                 torch.save(optimizer.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".opt")
             dt_string = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
@@ -141,7 +139,6 @@ class Trainer:
                 _, predicted1 = torch.max(predictions1[-1].data, 1)
                 predicted1 = predicted1.squeeze()
 
-
                 recognition1 = []
                 for i in range(len(predicted1)):
                     recognition1 = np.concatenate((recognition1, [list(actions_dict_gesures.keys())[
@@ -155,10 +152,5 @@ class Trainer:
                                              suffix="gesture")
             results.update(results1)
 
-
             self.model.train()
             return results
-
-
-
-
