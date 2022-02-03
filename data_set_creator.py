@@ -44,11 +44,11 @@ def create_dataset(folds_folder="/datashare/apas/folds",features_path="/datashar
             # with open(f'{filename.replace(".txt","")}_paths.txt','a') as file:
 
 
+
 def image_feature_extraction(samples_ind, surgery_path, video_type):
 
 
 #%%
-
 class Resnet_feature_extractor(nn.Module):
     """
     This class is the ResNet-50 based class used for feature extraction used in the advanced part of the project.
