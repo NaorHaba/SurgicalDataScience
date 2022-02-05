@@ -1,8 +1,6 @@
 # Created by Adam Goldbraikh - Scalpel Lab Technion
-import torch
+
 import torch.nn as nn
-import torch.nn.functional as F
-import copy
 from torch.nn.utils.rnn import pack_padded_sequence
 
 
@@ -47,14 +45,12 @@ class MT_RNN_dp(nn.Module):
 
 #!/usr/bin/python2.7
 
-import sys
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import optim
 import copy
 import numpy as np
-from loguru import logger
 
 
 # input size = (B, F(2048), N(SURGERY))
@@ -277,3 +273,5 @@ class Trainer:
                 f_ptr.write("### Frame level recognition: ###\n")
                 f_ptr.write(' '.join(recognition))
                 f_ptr.close()
+
+

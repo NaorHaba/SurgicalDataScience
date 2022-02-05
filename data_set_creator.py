@@ -1,3 +1,5 @@
+from typing import List
+
 import torch
 import numpy as np
 import random
@@ -5,6 +7,7 @@ import os
 import pandas as pd
 import torchvision
 from scipy.stats import norm
+from torch.utils.data import Dataset
 from torchvision import transforms, models
 import torch.nn as nn
 import pandas as pd
@@ -14,6 +17,8 @@ import tqdm
 
 # TODO: create min len function
 # TODO: adjust for adam's code
+from torchvision.transforms import ToTensor
+
 
 def create_dataset(extractor,folds_folder="/datashare/apas/folds",features_path="/datashare/apas/kinematics_npy/",frames_path = "/datashare/apas/frames/",
                    sample_rate = 6, features = ['top','side','kinematics'], labels_path ="/datashare/apas/transcriptions",
@@ -114,3 +119,28 @@ if __name__ == '__main__':
     create_dataset(extractor = extractor, folds_folder=folds_folder, features_path=features_path,
                        frames_path=frames_path, sample_rate=sample_rate, features=features,
                        labels_path=labels_path, labels_type=labels_type, save_path=save_path)
+
+
+class FeatureDataset(Dataset):
+    def __init__(self, surgery_folders: List, data_types: List, tasks: List,
+                 transform=ToTensor, target_transform=ToTensor):
+        assert surgery_folders and data_types and tasks, "must receive not empty lists"
+        self.surgery_folders = surgery_folders
+        self.data_types = data_types
+        self.tasks = tasks
+        self.transform = transform
+        self.target_transform = target_transform
+
+    def __getitem__(self, item):
+        surgery_folder = self.surgery_folders[item]
+        features = {}
+        labels = {}
+        for data_t in self.data_types:
+            features[data_t] = (np.load(os.path.join(surgery_folder, data_t + '.npy')))
+        for task in self.tasks:
+            labels[task] = (np.load(os.path.join(surgery_folder, task + '.npy')))
+
+        return features, labels
+
+    def __len__(self):
+        return len(self.surgery_folders)
