@@ -55,14 +55,16 @@ def create_dataset(extractor,folds_folder="/datashare/apas/folds",features_path=
                     k_array_sampled = k_array[:,samples_ind]
                     np.save(f'{sur_dir}/kinematics.npy', k_array_sampled)
                 if 'top' in features:
-                    features = image_feature_extraction_s(samples_ind,sur_frames_path,'top',extractor)
+                    top_frames = surgery_frames(samples_ind,sur_frames_path,'top')
+                    features = extractor(top_frames)
                     np.save(f'{sur_dir}/top.npy', features)
                 if 'side' in features:
-                    features = image_feature_extraction_s(samples_ind,sur_frames_path,'side',extractor)
+                    side_frames = surgery_frames(samples_ind,sur_frames_path,'side')
+                    features = extractor(side_frames)
                     np.save(f'{sur_dir}/side.npy', features)
 
 
-def image_feature_extraction_s(samples_ind, surgery_path, video_type,extractor):
+def surgery_frames(samples_ind, surgery_path, video_type,extractor):
     path = f'{surgery_path}_{video_type}'
     template= '00000'
     t_list = []
@@ -72,9 +74,7 @@ def image_feature_extraction_s(samples_ind, surgery_path, video_type,extractor):
         transformer = transforms.Compose(
             [transforms.ToTensor(), transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),transforms.Resize(size=224), transforms.CenterCrop((224,224))])
         t_list.append(transformer(img).requires_grad_(False))
-    imgs= torch.stack(t_list)
-    features = extractor(imgs)
-    return features.squeeze()
+    return torch.stack(t_list)
 
 
 #%%
