@@ -54,7 +54,7 @@ def create_dataset(extractor,folds_folder="/datashare/apas/folds",features_path=
                     for i,hand in enumerate(['tools_left','tools_right']):
                         df = pd.read_csv(f'{labels_path}_{hand}/{sur}.txt', header=None,
                                          names=['start', 'end', 'label'], sep=' ')
-                        hands_labels[i,:] = np.array([df[(df.start<=i)&(df.end>=i)]['label'].item() for i in samples_ind])
+                        hands_labels[i,:] = np.array([df[(df.start<=i)&(df.end>=i)]['label'].item() if i>df.loc[0].start.item() else 'T0' for i in samples_ind])
                     np.save(f'{sur_dir}/tools.npy', hands_labels)
                 if 'kinematics' in features:
                     k_array_sampled = k_array[:,samples_ind]
