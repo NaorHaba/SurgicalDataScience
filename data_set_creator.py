@@ -52,7 +52,7 @@ def create_dataset(extractor,folds_folder="/datashare/apas/folds",features_path=
                 if 'tools' in labels_type:
                     hands_labels = np.zeros((2,len(samples_ind)))
                     for i,hand in enumerate(['tools_left','tools_right']):
-                        df = pd.read_csv(f'{labels_path}_{hand}/{sur}.txt', header=None,
+                        df = pd.read_csv(f'{labels_path}_{hand}_new/{sur}.txt', header=None,
                                          names=['start', 'end', 'label'], sep=' ')
                         hands_labels[i,:] = np.array([df[(df.start<=i)&(df.end>=i)]['label'].item() if i>df.loc[0].start.item() else 'T0' for i in samples_ind])
                     np.save(f'{sur_dir}/tools.npy', hands_labels)
@@ -61,12 +61,14 @@ def create_dataset(extractor,folds_folder="/datashare/apas/folds",features_path=
                     np.save(f'{sur_dir}/kinematics.npy', k_array_sampled)
                 if 'top' in features:
                     top_frames = surgery_frames(samples_ind,sur_frames_path,'top')
+                    np.save(f'{sur_dir}/top.npy',top_frames)
                     features = extractor(top_frames)
-                    np.save(f'{sur_dir}/top.npy', features)
+                    np.save(f'{sur_dir}/top_resnet.npy', features)
                 if 'side' in features:
                     side_frames = surgery_frames(samples_ind,sur_frames_path,'side')
+                    np.save(f'{sur_dir}/side.npy',side_frames)
                     features = extractor(side_frames)
-                    np.save(f'{sur_dir}/side.npy', features)
+                    np.save(f'{sur_dir}/side_resnet.npy', features)
 
 
 def surgery_frames(samples_ind, surgery_path, video_type,extractor):
@@ -80,7 +82,6 @@ def surgery_frames(samples_ind, surgery_path, video_type,extractor):
             [transforms.ToTensor(), transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),transforms.Resize(size=224), transforms.CenterCrop((224,224))])
         t_list.append(transformer(img).requires_grad_(False))
     return torch.stack(t_list)
-
 
 #%%
 class Resnet_feature_extractor(nn.Module):
@@ -104,23 +105,6 @@ class Resnet_feature_extractor(nn.Module):
         return x
 #%%
 
-
-if __name__ == '__main__':
-    extractor = Resnet_feature_extractor(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-    folds_folder = "/datashare/apas/folds"
-    features_path = "/datashare/apas/kinematics_npy/"
-    frames_path = "/datashare/apas/frames/"
-    sample_rate = 6
-    features = ['top', 'side', 'kinematics']
-    labels_path = "/datashare/apas/transcriptions"
-    labels_type = ['gestures', 'tools']
-    save_path = '/home/student/Project/data'
-    print('creating data set')
-    create_dataset(extractor = extractor, folds_folder=folds_folder, features_path=features_path,
-                       frames_path=frames_path, sample_rate=sample_rate, features=features,
-                       labels_path=labels_path, labels_type=labels_type, save_path=save_path)
-
-
 class FeatureDataset(Dataset):
     def __init__(self, surgery_folders: List, data_types: List, tasks: List,
                  transform=ToTensor, target_transform=ToTensor):
@@ -139,8 +123,23 @@ class FeatureDataset(Dataset):
             features[data_t] = (np.load(os.path.join(surgery_folder, data_t + '.npy')))
         for task in self.tasks:
             labels[task] = (np.load(os.path.join(surgery_folder, task + '.npy')))
-
         return features, labels
 
     def __len__(self):
         return len(self.surgery_folders)
+
+if __name__ == '__main__':
+    extractor = Resnet_feature_extractor(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    folds_folder = "/datashare/apas/folds"
+    features_path = "/datashare/apas/kinematics_npy/"
+    frames_path = "/datashare/apas/frames/"
+    sample_rate = 6
+    features = ['top', 'side', 'kinematics']
+    labels_path = "/datashare/apas/transcriptions"
+    labels_type = ['gestures', 'tools']
+    save_path = '/home/student/Project/data'
+    print('creating data set')
+    create_dataset(extractor = extractor, folds_folder=folds_folder, features_path=features_path,
+                       frames_path=frames_path, sample_rate=sample_rate, features=features,
+                       labels_path=labels_path, labels_type=labels_type, save_path=save_path)
+
