@@ -13,9 +13,7 @@ import torch.nn as nn
 import pandas as pd
 from PIL import Image
 import tqdm
-#%%
 
-# TODO: create min len function
 # TODO: adjust for adam's code
 from torchvision.transforms import ToTensor
 
@@ -50,28 +48,44 @@ def create_dataset(extractor,folds_folder="/datashare/apas/folds",features_path=
                 gestures = np.array([df[(df.start<=i)&(df.end>=i)]['label'].item() for i in samples_ind])
                 np.save(f'{sur_dir}/gestures.npy',gestures)
                 if 'tools' in labels_type:
-                    hands_labels = np.zeros((2,len(samples_ind)))
+                    hands_labels = np.zeros((2,len(samples_ind))).astype('str')
                     for i,hand in enumerate(['tools_left','tools_right']):
                         df = pd.read_csv(f'{labels_path}_{hand}_new/{sur}.txt', header=None,
                                          names=['start', 'end', 'label'], sep=' ')
-                        hands_labels[i,:] = np.array([df[(df.start<=i)&(df.end>=i)]['label'].item() if i>df.loc[0].start.item() else 'T0' for i in samples_ind])
+                        cur_hand_labels =  np.array([df[(df.start<=i)&(df.end>=i)]['label'].item() for i in samples_ind])
+                        hands_labels[i,:] = cur_hand_labels
                     np.save(f'{sur_dir}/tools.npy', hands_labels)
                 if 'kinematics' in features:
                     k_array_sampled = k_array[:,samples_ind]
                     np.save(f'{sur_dir}/kinematics.npy', k_array_sampled)
                 if 'top' in features:
                     top_frames = surgery_frames(samples_ind,sur_frames_path,'top')
-                    np.save(f'{sur_dir}/top.npy',top_frames)
-                    features = extractor(top_frames)
-                    np.save(f'{sur_dir}/top_resnet.npy', features)
+                    torch.save(top_frames,f'{sur_dir}/top.pt')
+                    top_frames = extractor.extractor_transform(top_frames)
+                    top_frames_split = top_frames.split(125)
+                    for i in range(len(top_frames_split)):
+                        if i == 0:
+                            top_features = extractor(top_frames_split[0])
+                        else:
+                            tmp_features = extractor(top_frames_split[i])
+                            top_features = torch.cat((top_features, tmp_features))
+                    torch.save(top_features,f'{sur_dir}/top_resnet.pt')
                 if 'side' in features:
                     side_frames = surgery_frames(samples_ind,sur_frames_path,'side')
-                    np.save(f'{sur_dir}/side.npy',side_frames)
-                    features = extractor(side_frames)
-                    np.save(f'{sur_dir}/side_resnet.npy', features)
+                    torch.save(side_frames,f'{sur_dir}/side.pt')
+                    side_frames = extractor.extractor_transform(side_frames)
+                    side_frames_split = side_frames.split(125)
+                    for i in range(len(side_frames_split)):
+                        if i == 0:
+                            side_features = extractor(side_frames_split[0])
+                        else:
+                            tmp_features = extractor(side_frames_split[i])
+                            side_features = torch.cat((side_features, tmp_features))
+                    torch.save(side_features,f'{sur_dir}/side_resnet.pt')
 
 
-def surgery_frames(samples_ind, surgery_path, video_type,extractor):
+
+def surgery_frames(samples_ind, surgery_path, video_type):
     path = f'{surgery_path}_{video_type}'
     template= '00000'
     t_list = []
@@ -79,11 +93,10 @@ def surgery_frames(samples_ind, surgery_path, video_type,extractor):
         img_path = path+'/img_'+template[:-len(str(frame_num))]+str(frame_num)+'.jpg'
         img = Image.open(img_path)
         transformer = transforms.Compose(
-            [transforms.ToTensor(), transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),transforms.Resize(size=224), transforms.CenterCrop((224,224))])
+            [transforms.ToTensor()])
         t_list.append(transformer(img).requires_grad_(False))
     return torch.stack(t_list)
 
-#%%
 class Resnet_feature_extractor(nn.Module):
     """
     This class is the ResNet-50 based class used for feature extraction used in the advanced part of the project.
@@ -93,17 +106,22 @@ class Resnet_feature_extractor(nn.Module):
     def __init__(self, device):
         super(Resnet_feature_extractor, self).__init__()
         self.resnet_model = models.resnet50(pretrained=True).to(device)
+        self.device = device
+        self.transformer = transforms.Compose([transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)), transforms.Resize(
+            size=224), transforms.CenterCrop((224, 224))])
         # freeze all Renset parameters since we’re only optimizing the target image
         for param in self.resnet_model.parameters():
             param.requires_grad_(False)
 
+    def extractor_transform (self, x):
+        return self.transformer(x)
+
     def forward(self, x):
+        x = x.to(self.device)
         for (layer_name, layer) in self.resnet_model.named_children():
             if layer_name not in ['fc']:
                 x = layer(x)
-        print(x.shape)
         return x
-#%%
 
 class FeatureDataset(Dataset):
     def __init__(self, surgery_folders: List, data_types: List, tasks: List,
@@ -128,6 +146,7 @@ class FeatureDataset(Dataset):
     def __len__(self):
         return len(self.surgery_folders)
 
+
 if __name__ == '__main__':
     extractor = Resnet_feature_extractor(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
     folds_folder = "/datashare/apas/folds"
@@ -142,4 +161,3 @@ if __name__ == '__main__':
     create_dataset(extractor = extractor, folds_folder=folds_folder, features_path=features_path,
                        frames_path=frames_path, sample_rate=sample_rate, features=features,
                        labels_path=labels_path, labels_type=labels_type, save_path=save_path)
-
