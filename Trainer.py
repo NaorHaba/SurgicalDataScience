@@ -17,22 +17,28 @@ import tqdm
 class Trainer:
     def __init__(self, dim, num_classes_list, hidden_dim=64, dropout=0.4, num_layers=3, offline_mode=True,
                  task="gestures", device="cuda",
-                 network='LSTM', debagging=False):
+                 network='LSTM', debugging=False):
 
         self.model = MT_RNN_dp(network, input_dim=dim, hidden_dim=hidden_dim, num_classes_list=num_classes_list,
                                bidirectional=offline_mode, dropout=dropout, num_layers=num_layers)
 
-        self.debugging = debagging
+        self.debugging = debugging
         self.network = network
         self.device = device
         self.ce = nn.CrossEntropyLoss(ignore_index=-100)
         self.num_classes_list = num_classes_list
         self.task = task
 
-    def train(self, save_dir, batch_gen, num_epochs, batch_size, learning_rate, eval_dict, args):
+    def train(self, save_dir, train_data_loader, test_data_loader, num_epochs, learning_rate, eval_dict, args):
+        # ** batch_gen changed to train_data_loader and test_data_loader
 
-        number_of_seqs = len(batch_gen.list_of_train_examples)
-        number_of_batches = math.ceil(number_of_seqs / batch_size)
+        # ** old -
+        # number_of_seqs = len(batch_gen.list_of_train_examples)
+        # number_of_batches = math.ceil(number_of_seqs / batch_size)
+
+        # ** new -
+        number_of_seqs = len(train_data_loader.sampler)
+        number_of_batches = len(train_data_loader.batch_sampler)
 
         eval_results_list = []
         train_results_list = []
@@ -55,17 +61,38 @@ class Trainer:
             correct1 = 0
             total1 = 0
 
-            while batch_gen.has_next():
-                batch_input, batch_target_gestures, mask = batch_gen.next_batch(batch_size)
-                batch_input, batch_target_gestures, mask = batch_input.to(self.device), batch_target_gestures.to(
-                    self.device), mask.to(self.device)
+            # ** old -
+            # while batch_gen.has_next():
+            #     batch_input, batch_target_gestures, mask = batch_gen.next_batch(batch_size)
+            #     batch_input, batch_target_gestures, mask = batch_input.to(self.device), batch_target_gestures.to(
+            #       self.device), mask.to(self.device)
+
+            # ** new -
+            for batch in train_data_loader:
+                batch_input, batch_target, lengths, mask = batch
+                batch_input = batch_input.to(self.device)
+                batch_target = batch_target.to(self.device)
+                mask = mask.to(self.device)
 
                 optimizer.zero_grad()
-                lengths = torch.sum(mask[:, 0, :], dim=1).to(dtype=torch.int64).to(device='cpu')
-                predictions1 = self.model(batch_input, lengths)
+                # ** old -
+                # lengths = torch.sum(mask[:, 0, :], dim=1).to(dtype=torch.int64).to(device='cpu')
+
+                # ** new - received as part of batch
+                lengths = lengths.to(dtype=torch.int64).to(device='cpu')
+
+                # ** old -
+                # predictions1 = self.model(batch_input, lengths)
+
+                # ** new -
+                predictions1 = self.model(batch_input, lengths, mask)
                 predictions1 = (predictions1[0] * mask).unsqueeze_(0)
 
-                loss = 0
+                # ** old -
+                # loss = 0
+
+                # ** new -
+                loss = torch.tensor(0)
                 for p in predictions1:
                     loss += self.ce(p.transpose(2, 1).contiguous().view(-1, self.num_classes_list[0]),
                                     batch_target_gestures.view(-1))
@@ -75,25 +102,36 @@ class Trainer:
                 optimizer.step()
                 _, predicted1 = torch.max(predictions1[-1].data, 1)
                 for i in range(len(lengths)):
-                    correct1 += (predicted1[i][:lengths[i]] == batch_target_gestures[i][
-                                                               :lengths[i]]).float().sum().item()
+                    correct1 += (predicted1[i][:lengths[i]] == batch_target_gestures[i][:lengths[i]]).float().sum().item()
                     total1 += lengths[i]
 
                 pbar.update(1)
 
-            batch_gen.reset()
+            # ** old -
+            # batch_gen.reset()
+
             pbar.close()
             if not self.debugging:
                 torch.save(self.model.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".model")
                 torch.save(optimizer.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".opt")
             dt_string = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            print(colored(dt_string, 'green',
-                          attrs=['bold']) + "  " + "[epoch %d]: train loss = %f,   train acc = %f" % (epoch + 1,
-                                                                                                      epoch_loss / len(
-                                                                                                          batch_gen.list_of_train_examples),
-                                                                                                      float(
-                                                                                                          correct1) / total1))
-            train_results = {"epoch": epoch, "train loss": epoch_loss / len(batch_gen.list_of_train_examples),
+
+            # ** old -
+            # print(colored(dt_string, 'green',
+            #               attrs=['bold']) + "  " + "[epoch %d]: train loss = %f,   train acc = %f" % (epoch + 1,
+            #                                                                                           epoch_loss / len(
+            #                                                                                               batch_gen.list_of_train_examples),
+            #                                                                                           float(
+            #                                                                                               correct1) / total1))
+            # train_results = {"epoch": epoch, "train loss": epoch_loss / len(batch_gen.list_of_train_examples),
+            #                  "train acc": float(correct1) / total1}
+
+            # ** new -
+            print(colored(
+                dt_string, 'green',
+                attrs=['bold']) + f"  [epoch {epoch + 1}: train loss = {epoch_loss / number_of_seqs},   "
+                                  f"train acc = {float(correct1) / total1}")
+            train_results = {"epoch": epoch, "train loss": epoch_loss / number_of_seqs,
                              "train acc": float(correct1) / total1}
 
             if args.upload:
@@ -101,10 +139,15 @@ class Trainer:
 
             train_results_list.append(train_results)
 
-            if (epoch) % eval_rate == 0:
+            if epoch % eval_rate == 0:
                 print(colored("epoch: " + str(epoch + 1) + " model evaluation", 'red', attrs=['bold']))
                 results = {"epoch": epoch}
-                results.update(self.evaluate(eval_dict, batch_gen))
+
+                # ** old -
+                # results.update(self.evaluate(eval_dict, batch_gen))
+
+                # ** new -
+                results.update(self.evaluate(eval_dict, test_data_loader))
                 eval_results_list.append(results)
                 if args.upload is True:
                     wandb.log(results)
