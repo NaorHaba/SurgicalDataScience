@@ -33,12 +33,11 @@ def create_dataset(extractor,folds_folder="/datashare/apas/folds",features_path=
                 os.mkdir(save_dir_name)
             for sur in tqdm.tqdm(fold_sur_files):
                 sur_dir = os.path.join(save_dir_name,sur)
-                if sur not in os.listdir(save_dir_name):
-                    os.mkdir(sur_dir)
-                elif len(os.listdir(sur_dir))==5:
-                    continue
-                if sur=='P020_balloon2':
-                    print('P020_balloon2, Continue')
+                # if sur not in os.listdir(save_dir_name):
+                #     os.mkdir(sur_dir)
+                # elif len(os.listdir(sur_dir))==5:
+                #     continue
+                if sur!='P020_balloon2':
                     continue
                 print(sur)
                 sur_frames_path = f'{frames_path}{sur}'
@@ -51,6 +50,7 @@ def create_dataset(extractor,folds_folder="/datashare/apas/folds",features_path=
                     k_array = np.load(features_path + sur + '.npy')
                     k_len = k_array.shape[1]
                 min_len = min(k_len,t_len,s_len)
+                min_len = 7405
                 samples_ind = range(1,min_len,sample_rate)
                 df = pd.read_csv(f'{labels_path}_gestures/{sur}.txt', header=None, names=['start','end','label'], sep=' ')
                 gestures = np.array([df[(df.start<=i)&(df.end>=i)]['label'].item() for i in samples_ind])
