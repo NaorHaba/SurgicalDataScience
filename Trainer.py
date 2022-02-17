@@ -15,18 +15,12 @@ import tqdm
 
 
 class Trainer:
-    def __init__(self, dim, num_classes_list, hidden_dim=64, dropout=0.4, num_layers=3, offline_mode=True,
-                 task="gestures", device="cuda",
-                 network='LSTM', debugging=False):
+    def __init__(self,  num_classes, model , task="gestures", device="cuda"):
 
-        self.model = MT_RNN_dp(network, input_dim=dim, hidden_dim=hidden_dim, num_classes_list=num_classes_list,
-                               bidirectional=offline_mode, dropout=dropout, num_layers=num_layers)
-
-        self.debugging = debugging
-        self.network = network
+        self.model = model
         self.device = device
         self.ce = nn.CrossEntropyLoss(ignore_index=-100)
-        self.num_classes_list = num_classes_list
+        self.num_classes_list = [num_classes]
         self.task = task
 
     def train(self, save_dir, train_data_loader, test_data_loader, num_epochs, learning_rate, eval_dict, args):
@@ -46,8 +40,8 @@ class Trainer:
 
         if args.upload is True:
             wandb.init(project=args.project, group=args.group,
-                       name="split: " + args.split, entity=args.entity,  # FIXME: we added entity
-                       reinit=True)
+                       name="split: " + args.split, entity=args.entity,  # ** we added entity, mode
+                       mode=args.wandb_mode, reinit=True)
             delattr(args, 'split')
             wandb.config.update(args)
 
@@ -70,8 +64,8 @@ class Trainer:
             # ** new -
             for batch in train_data_loader:
                 batch_input, batch_target, lengths, mask = batch
-                batch_input = batch_input.to(self.device)
-                batch_target = batch_target.to(self.device)
+                batch_input = {input: data.to(self.device) for input,data in batch_input.items()}
+                batch_target = {input: data.to(self.device) for input,data in batch_target.items()}
                 mask = mask.to(self.device)
 
                 optimizer.zero_grad()
@@ -83,7 +77,7 @@ class Trainer:
 
                 # ** old -
                 # predictions1 = self.model(batch_input, lengths)
-
+                #TODO
                 # ** new -
                 predictions1 = self.model(batch_input, lengths, mask)
                 predictions1 = (predictions1[0] * mask).unsqueeze_(0)
@@ -111,9 +105,15 @@ class Trainer:
             # batch_gen.reset()
 
             pbar.close()
-            if not self.debugging:
-                torch.save(self.model.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".model")
-                torch.save(optimizer.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".opt")
+
+            # ** old:
+            # if not self.debugging:
+            #     torch.save(self.model.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".model")
+            #     torch.save(optimizer.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".opt")
+
+            # **new:
+            torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "model.h5"))
+            torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "optimizer.h5"))
             dt_string = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
             # ** old -
@@ -134,8 +134,8 @@ class Trainer:
             train_results = {"epoch": epoch, "train loss": epoch_loss / number_of_seqs,
                              "train acc": float(correct1) / total1}
 
-            if args.upload:
-                wandb.log(train_results)
+            # if args.upload: # **controlled by wandb mode
+            wandb.log(train_results)
 
             train_results_list.append(train_results)
 
@@ -149,8 +149,8 @@ class Trainer:
                 # ** new -
                 results.update(self.evaluate(eval_dict, test_data_loader))
                 eval_results_list.append(results)
-                if args.upload is True:
-                    wandb.log(results)
+                # if args.upload is True:  # **controlled by wandb mode
+                wandb.log(results)
 
         return eval_results_list, train_results_list
 

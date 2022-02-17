@@ -17,6 +17,13 @@ import tqdm
 #%%
 # TODO: adjust for adam's code
 
+def extract_features(folds_folder,features_path,frames_path,sample_rate,features,labels_path,labels_type,save_path = '/home/student/Project/data'):
+    extractor = Resnet_feature_extractor(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    create_dataset(extractor = extractor, folds_folder=folds_folder, features_path=features_path,
+                       frames_path=frames_path, sample_rate=sample_rate, features=features,
+                       labels_path=labels_path, labels_type=labels_type, save_path=save_path)
+
+
 def create_dataset(extractor,folds_folder="/datashare/apas/folds",features_path="/datashare/apas/kinematics_npy/",frames_path = "/datashare/apas/frames/",
                    sample_rate = 6, features = ['top','side','kinematics'], labels_path ="/datashare/apas/transcriptions",
                    labels_type = ['gestures','tools'], save_path = '/home/student/Project/data'):
@@ -132,7 +139,11 @@ class Resnet_feature_extractor(nn.Module):
                 x = layer(x)
         return x
 
+
+
 #%%
+
+
 if __name__ == '__main__':
     extractor = Resnet_feature_extractor(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
     folds_folder = "/datashare/apas/folds"
