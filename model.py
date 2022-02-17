@@ -94,13 +94,21 @@ class MS_TCN(nn.Module):
             stages.append(nn.Sequential(SS_TCN(dilations, DilatedResidualLayer, num_f_maps, in_dim, num_classes, **kw),
                                         nn.Softmax()))
 
-        self.stages = nn.ModuleList(stages)
+        # self.stages = nn.ModuleList(stages)
+        self.stages = stages
+
 
     def forward(self, x, mask):
         outputs = []
         out = x
         for s in self.stages:
-            out = s(out, mask) * mask
+            for s_s in s.children(): ##FIXME
+                if s_s._get_name()!='Softmax':
+                    out = s_s(out, mask)*mask.unsqueeze(1) ##FIXME
+                else:
+                    out = s_s(out) * mask.unsqueeze(1)
+            # out = s(out, mask)
+            # out = out*mask
             outputs.append(out)
         return torch.cat(outputs)  # i changed this and changed MASK
 
@@ -117,10 +125,12 @@ class SS_TCN(nn.Module):
         self.gate_out = nn.Conv1d(num_f_maps, num_classes, 1)
 
     def forward(self, x, mask):
-        out = self.gate_in(x)
-        out = self.stage(out, mask)
+        out = self.gate_in(x.float()) #FIXME - types error
+        # out = self.stage(out)
+        for sub_stage in self.stage:
+            out = sub_stage(out,mask)
         out = self.gate_out(out)
-        return out * mask
+        return out * mask.unsqueeze(1) #FIXME - dimensions
 
 
 class DilatedResidualLayer(nn.Module):
@@ -133,9 +143,12 @@ class DilatedResidualLayer(nn.Module):
             nn.Dropout(dropout)
         )
 
-    def forward(self, x, mask):
-        out = self.net(x)
-        return (x + out) * mask
+    def forward(self, x,mask):
+        out = self.layer(x) # FIXME - net not existed
+        # out = self.net(x)
+        # return (x + out) * mask
+        return (x + out) * mask.unsqueeze(1) #FIXME - dimensions error.
+        # return (x + out)
 
 
 class DualDilatedResidualLayer(nn.Module):
