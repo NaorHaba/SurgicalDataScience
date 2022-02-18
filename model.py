@@ -53,6 +53,27 @@ import copy
 import numpy as np
 
 
+class MT_SS_TCN(nn.Module):
+    def __init__(self, dilations, dilated_layer, num_f_maps, dim, num_classes, **kw):
+        super(SS_TCN, self).__init__()
+        self.gate_in = nn.Conv1d(dim, num_f_maps, 1)
+        self.stage = nn.Sequential(
+            *[
+                dilated_layer(dilation, num_f_maps, num_f_maps, **kw) for dilation in dilations
+            ],
+        )
+        self.gates_out = [nn.Conv1d(num_f_maps, num, 1) for num in num_classes]
+
+    def forward(self, x, mask):
+        out = self.gate_in(x) * mask
+        for sub_stage in self.stage:
+            out = sub_stage(out,mask)
+        outputs = [gate(out)*mask for gate in self.gates_out]
+        return torch.cat(outputs)
+
+
+
+
 # input size = (B, F(2048), N(SURGERY))
 class MS_TCN_PP(nn.Module):
     def __init__(self, num_stages, num_layers, num_f_maps, dim, num_classes, **kw):
@@ -97,7 +118,6 @@ class MS_TCN(nn.Module):
             if i != 0:
                 in_dim = num_classes
             stages.append(SS_TCN(dilations, DilatedResidualLayer, num_f_maps, in_dim, num_classes, **kw))
-
         # self.stages = nn.ModuleList(stages)
         self.stages = stages
 
@@ -109,20 +129,6 @@ class MS_TCN(nn.Module):
             out = s(self.softmax(out)*mask, mask) * mask
             outputs.append(out.unsqueeze(0))
         return torch.cat(outputs,dim=0)
-        # old:
-        # outputs = []
-        # out = x
-        # for s in self.stages:
-        #     out = s(out,mask) * mask
-        #     # for s_s in s.children(): ##FIXME
-        #     #     if s_s._get_name()!='Softmax':
-        #     #         out = s_s(out, mask) ##FIXME
-        #     #     else:
-        #     #         out = s_s(out)
-        #     # out = out*mask
-        #     outputs.append(out.unsqueeze(0))
-        # # return torch.cat(outputs)  # i changed this and changed MASK
-        # return torch.cat(outputs,dim=0)
 
 
 class SS_TCN(nn.Module):
@@ -135,17 +141,12 @@ class SS_TCN(nn.Module):
             ],
         )
         self.gate_out = nn.Conv1d(num_f_maps, num_classes, 1)
-        # self.softmax =  nn.Softmax(dim=1)
-
-
-    #TODO: fix softmax
 
     def forward(self, x, mask):
         out = self.gate_in(x) * mask
         for sub_stage in self.stage:
             out = sub_stage(out,mask)
-        out = self.gate_out(out)*mask
-        # out = self.softmax(out)
+        out = self.gate_out(out)
         return out * mask
 
 

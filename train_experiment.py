@@ -16,12 +16,13 @@ from termcolor import colored, cprint
 import random
 import logging
 import itertools
-from data_set_creator import FeatureDataset, collate_inputs
+from data_set_creator import FeatureDataset, collate_inputs, Kinematics_Transformer
 from model import MS_TCN, MS_TCN_PP, SeperateFeatureExtractor, SurgeryModel
 
 logger = logging.getLogger(__name__)
 EXTRACTED_DATA_PATH = '/home/student/Project/data/'
 FOLDS_FOLDER_PATH = '/datashare/APAS/folds'
+STD_PARAMS_PATH = '/datashare/APAS/folds/std_params_fold_'
 GESTURES_NUM_CLASSES = 6
 # TOOLS_NUM_CLASSES = 4
 ACTIVATIONS = {'relu': nn.ReLU, 'lrelu':nn.LeakyReLU, 'tanh':nn.Tanh}
@@ -42,7 +43,7 @@ def parsing():
     parser.add_argument('--dropout', default=0.4, type=float)
     parser.add_argument('--num_layers', default=3, type=int)
     parser.add_argument('--hidden_dim', default=64, type=int)
-    parser.add_argument('--normalization', choices=['none'], default='none', type=str)
+    parser.add_argument('--normalization', choices=['none','Min-max','Standard'], default='Min-max', type=str)
     parser.add_argument('--offline_mode', default=True, type=bool)
 
     parser.add_argument('--project', default="kinematics-examples", type=str)
@@ -173,8 +174,7 @@ if __name__=='__main__':
         train_surgery_list = [surgeries_per_fold[fold] if fold != split_num else [] for fold in surgeries_per_fold]
         train_surgery_list = list(itertools.chain(*train_surgery_list))
         val_surgery_list = surgeries_per_fold[split_num]
-
-        k_transform = partial(normalize, file='file', file2='file2')
+        k_transform = Kinematics_Transformer(f'{STD_PARAMS_PATH}{split_num}.csv',args.normalization).transform
         ds_train = FeatureDataset(train_surgery_list, args.data_types, args.tasks, k_transform)
         dl_train = DataLoader(ds_train, batch_size=args.batch_size, collate_fn=collate_inputs)
         ds_val = FeatureDataset(val_surgery_list, args.data_types, args.tasks,k_transform)
