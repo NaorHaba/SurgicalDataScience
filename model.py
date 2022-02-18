@@ -118,8 +118,8 @@ class MS_TCN(nn.Module):
             if i != 0:
                 in_dim = num_classes
             stages.append(SS_TCN(dilations, DilatedResidualLayer, num_f_maps, in_dim, num_classes, **kw))
-        # self.stages = nn.ModuleList(stages)
-        self.stages = stages
+        self.stages = nn.ModuleList(stages)
+        # self.stages = stages
 
 
     def forward(self, x, mask):

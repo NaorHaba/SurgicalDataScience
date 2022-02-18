@@ -25,6 +25,7 @@ FOLDS_FOLDER_PATH = '/datashare/APAS/folds'
 STD_PARAMS_PATH = '/datashare/APAS/folds/std_params_fold_'
 GESTURES_NUM_CLASSES = 6
 # TOOLS_NUM_CLASSES = 4
+SAMPLE_RATE = 6
 ACTIVATIONS = {'relu': nn.ReLU, 'lrelu':nn.LeakyReLU, 'tanh':nn.Tanh}
 
 def parsing():
@@ -34,17 +35,17 @@ def parsing():
     # parser.add_argument('--task', choices=['gestures'], default="gestures")
     parser.add_argument('--test_split', choices=[0, 1, 2, 3, 4], default=None)
 
-    parser.add_argument('--network', choices=['LSTM', 'GRU'], default="LSTM")
-    parser.add_argument('--features_dim', default='36', type=int)
-    parser.add_argument('--lr', default=0.00316227766, type=float)
-    parser.add_argument('--num_epochs', default=2, type=int)
-    parser.add_argument('--eval_rate', default=1, type=int)
-    parser.add_argument('--batch_size', default=5, type=int)
-    parser.add_argument('--dropout', default=0.4, type=float)
-    parser.add_argument('--num_layers', default=3, type=int)
-    parser.add_argument('--hidden_dim', default=64, type=int)
-    parser.add_argument('--normalization', choices=['none','Min-max','Standard'], default='Min-max', type=str)
-    parser.add_argument('--offline_mode', default=True, type=bool)
+    # # parser.add_argument('--network', choices=['LSTM', 'GRU'], default="LSTM")
+    # # parser.add_argument('--features_dim', default='36', type=int)
+    # parser.add_argument('--lr', default=0.00316227766, type=float)
+    # parser.add_argument('--num_epochs', default=2, type=int)
+    # parser.add_argument('--eval_rate', default=1, type=int)
+    # parser.add_argument('--batch_size', default=5, type=int)
+    # # parser.add_argument('--dropout', default=0.4, type=float)
+    # parser.add_argument('--num_layers', default=3, type=int)
+    # parser.add_argument('--hidden_dim', default=64, type=int)
+    # parser.add_argument('--normalization', choices=['none','Min-max','Standard'], default='Min-max', type=str)
+    # parser.add_argument('--offline_mode', default=True, type=bool)
 
     parser.add_argument('--project', default="kinematics-examples", type=str)
     parser.add_argument('--entity', default="surgical_data_science", type=str)
@@ -53,19 +54,30 @@ def parsing():
     parser.add_argument('--upload', default=True, type=bool)
     parser.add_argument('--debugging', default=False, type=bool)
 
-    parser.add_argument('--data_types', choices=['top','side','kinematics'], nargs ='+')
-    parser.add_argument('--tasks', choices=['tools','gestures'], nargs ='+', default = ['gestures'])
+    parser.add_argument('--data_types', choices=['top','side','kinematics'], nargs ='+', default=['top','side','kinematics'])
+    parser.add_argument('--data_names', choices=['top_resnet.pt','side_resnet.pt','kinematics.npy'], nargs ='+', default=['top_resnet.pt','side_resnet.pt','kinematics.npy'])
+
+    parser.add_argument('--task', choices=['tools','gestures'], nargs ='+', default = ['gestures'])
     parser.add_argument('--time_series_model', choices=['MSTCN','MSTCN++'], default = 'MSTCN', type = str)
     parser.add_argument('--feature_extractor', choices=['separate'], default ='separate', type=str)
     # parser.add_argument('--top_extractor', choices=['separate'], default ='separate', type=str)
     # parser.add_argument('--side_extractor', choices=['separate'], default ='separate', type=str)
     # parser.add_argument('--kinematics_extractor', choices=['separate'], default ='separate', type=str)
 
+    parser.add_argument('--wandb_mode', choices = ['online', 'offline', 'disabled'], default='disabled', type=str)
+
     parser.add_argument('--num_stages',default = 3, type=int)
     parser.add_argument('--num_layers',default = 5, type=int)
     parser.add_argument('--num_f_maps',default = 10, type=int)
     parser.add_argument('--activation',choices=['relu','lrelu','tanh'], default ='relu' , type=str)
     parser.add_argument('--dropout',default = 0.1, type=float)
+    parser.add_argument('--eval_rate', default=1, type=int)
+    parser.add_argument('--batch_size', default=5, type=int)
+    parser.add_argument('--normalization', choices=['none','Min-max','Standard'], default='Min-max', type=str)
+    parser.add_argument('--lr', default=0.0316227766, type=float)
+    parser.add_argument('--num_epochs', default=1, type=int)
+
+
     args = parser.parse_args()
 
     assert args.dropout>=0 and args.dropout<=1
@@ -82,14 +94,18 @@ def set_seed(seed =1538574472 ):
 
 def splits_dict(list_of_splits, data_path, folds_folder):
     surgeries_per_fold = {}
+    vids_per_fold = {}
     for split in list_of_splits:
         fold_path = os.path.join(data_path,'fold_'+str(split))
-        file_ptr = open(os.path.join(folds_folder, f'fold {split}.txt', 'r'))
-        fold_sur_files = [os.path.join(fold_path, x.split('.')[0]) for x in file_ptr.read().split('\n')[:-1]]
+        file_ptr = open(os.path.join(folds_folder, f'fold {split}.txt'), 'r')
+        vids_list = file_ptr.read().split('\n')[:-1]
         file_ptr.close()
         if split==2:
-            fold_sur_files.remove(os.path.join(os.path.join(data_path,'fold_2'),'P039_balloon2'))
+            vids_list.remove('P039_balloon2.csv')
+        fold_sur_files = [os.path.join(fold_path, x.split('.')[0]) for x in vids_list]
         surgeries_per_fold[split] = fold_sur_files
+        vids_per_fold[split] = vids_list
+    return surgeries_per_fold,vids_per_fold
 
 def create_model(args):
     if args.feature_extractor=='separate':
@@ -138,8 +154,8 @@ def eval_dict_func (args):
     num_classes_gestures = len(actions_dict_gestures)
     num_classes_list = [num_classes_gestures]
     eval_dict = {"features_path": features_path, "actions_dict_gestures": actions_dict_gestures,
-                 "actions_dict_tools": actions_dict_tools, "device": device, "sample_rate": sample_rate,
-                 "eval_rate": eval_rate,
+                 "actions_dict_tools": actions_dict_tools, "device": device, "sample_rate": SAMPLE_RATE,
+                 "eval_rate": args.eval_rate,
                  "gt_path_gestures": gt_path_gestures, "gt_path_tools_left": gt_path_tools_left,
                  "gt_path_tools_right": gt_path_tools_right, "task": args.task}
     return eval_dict
@@ -154,7 +170,7 @@ if __name__=='__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = args.use_gpu_num
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     list_of_splits = args.test_split if args.test_split else list(range(5))
-    experiment_name = args.group + " task:" + args.task + " splits: " + args.split + " net: " + args.network
+    experiment_name = args.group + " task:" + ' '.join(args.task)
     args.group = experiment_name
     logger.info(colored(experiment_name, "green"))
     # summaries_dir = "./summaries/" + args.dataset + "/" + experiment_name
@@ -163,9 +179,9 @@ if __name__=='__main__':
     #         os.makedirs(summaries_dir)
     # full_eval_results = pd.DataFrame()
     # full_train_results = pd.DataFrame()
-    surgeries_per_fold = splits_dict(list_of_splits, EXTRACTED_DATA_PATH, FOLDS_FOLDER_PATH)
+    surgeries_per_fold,vids_per_fold = splits_dict(list_of_splits, EXTRACTED_DATA_PATH, FOLDS_FOLDER_PATH)
     for split_num in list_of_splits:
-        args.split = split_num
+        args.test_split = split_num
         logger.info("working on split number: " + str(split_num))
         # model_dir = "./models/" + args.dataset + "/" + experiment_name + "/split_" + split_num
         # if not args.debugging:
@@ -175,28 +191,23 @@ if __name__=='__main__':
         train_surgery_list = list(itertools.chain(*train_surgery_list))
         val_surgery_list = surgeries_per_fold[split_num]
         k_transform = Kinematics_Transformer(f'{STD_PARAMS_PATH}{split_num}.csv',args.normalization).transform
-        ds_train = FeatureDataset(train_surgery_list, args.data_types, args.tasks, k_transform)
+        ds_train = FeatureDataset(train_surgery_list, args.data_names, args.task, k_transform)
         dl_train = DataLoader(ds_train, batch_size=args.batch_size, collate_fn=collate_inputs)
-        ds_val = FeatureDataset(val_surgery_list, args.data_types, args.tasks,k_transform)
+        ds_val = FeatureDataset(val_surgery_list, args.data_names, args.task,k_transform)
         dl_val = DataLoader(ds_val, batch_size=args.batch_size, collate_fn=collate_inputs)
         #TODO
         model = create_model(args)
-        trainer = Trainer(num_classes = GESTURES_NUM_CLASSES, model=model, task=args.tasks,device=device)
-        eval_results, train_results = trainer.train(model_dir, batch_gen, num_epochs=num_epochs, batch_size=bz,
-                                                    learning_rate=lr, eval_dict=eval_dict, args=args)
-
-        if not args.debugging:
-            eval_results = pd.DataFrame(eval_results)
-            train_results = pd.DataFrame(train_results)
-            eval_results = eval_results.add_prefix('split_' + str(split_num) + '_')
-            train_results = train_results.add_prefix('split_' + str(split_num) + '_')
-            full_eval_results = pd.concat([full_eval_results, eval_results], axis=1)
-            full_train_results = pd.concat([full_train_results, train_results], axis=1)
-            full_eval_results.to_csv(summaries_dir + "/evaluation_results.csv", index=False)
-            full_train_results.to_csv(summaries_dir + "/train_results.csv", index=False)
-
-
-
-
-
-
+        trainer = Trainer(num_classes = GESTURES_NUM_CLASSES, model=model, task=args.task,device=device)
+        eval_dict = eval_dict_func(args)
+        eval_results, train_results = trainer.train(dl_train,dl_val, num_epochs=args.num_epochs, learning_rate = args.lr,
+                                                    eval_dict=eval_dict, list_of_vids=vids_per_fold[split_num],args=args)
+        #
+        # if not args.debugging:
+        #     eval_results = pd.DataFrame(eval_results)
+        #     train_results = pd.DataFrame(train_results)
+        #     eval_results = eval_results.add_prefix('split_' + str(split_num) + '_')
+        #     train_results = train_results.add_prefix('split_' + str(split_num) + '_')
+        #     full_eval_results = pd.concat([full_eval_results, eval_results], axis=1)
+        #     full_train_results = pd.concat([full_train_results, train_results], axis=1)
+        #     full_eval_results.to_csv(summaries_dir + "/evaluation_results.csv", index=False)
+        #     full_train_results.to_csv(summaries_dir + "/train_results.csv", index=False)

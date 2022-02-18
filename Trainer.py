@@ -23,7 +23,7 @@ class Trainer:
         self.num_classes_list = [num_classes]
         self.task = task
 
-    def train(self, save_dir, train_data_loader, test_data_loader, num_epochs, learning_rate, eval_dict, args):
+    def train(self, train_data_loader, test_data_loader, num_epochs, learning_rate, eval_dict,list_of_vids,args):
         # ** batch_gen changed to train_data_loader and test_data_loader
 
         # ** old -
@@ -36,14 +36,14 @@ class Trainer:
 
         eval_results_list = []
         train_results_list = []
-        print(args.dataset + " " + args.group + " " + args.dataset + " dataset " + "split: " + args.split)
+        print(args.dataset + " " + args.group + " " + args.dataset + " dataset " + "split: " + str(args.test_split))
 
-        if args.upload is True:
-            wandb.init(project=args.project, group=args.group,
-                       name="split: " + args.split, entity=args.entity,  # ** we added entity, mode
-                       mode=args.wandb_mode, reinit=True)
-            delattr(args, 'split')
-            wandb.config.update(args)
+        # if args.upload is True:
+        wandb.init(project=args.project, group=args.group,
+                   name="split: " + str(args.test_split), entity=args.entity,  # ** we added entity, mode
+                   mode=args.wandb_mode, reinit=True)
+        delattr(args, 'test_split')
+        wandb.config.update(args)
 
         self.model.train()
         self.model.to(self.device)
@@ -66,6 +66,7 @@ class Trainer:
                 batch_input, batch_target, lengths, mask = batch
                 batch_input = {input: data.to(self.device) for input,data in batch_input.items()}
                 batch_target = {input: data.to(self.device) for input,data in batch_target.items()}
+                batch_target_gestures = batch_target['gestures']
                 mask = mask.to(self.device)
 
                 optimizer.zero_grad()
@@ -80,23 +81,24 @@ class Trainer:
                 #TODO
                 # ** new -
                 predictions1 = self.model(batch_input, lengths, mask)
-                predictions1 = (predictions1[0] * mask).unsqueeze_(0)
+                predictions1 = predictions1[-1].permute(0,2,1)
 
                 # ** old -
                 # loss = 0
+                # for p in predictions1:
+                #     loss += self.ce(p.transpose(2, 1).contiguous().view(-1, self.num_classes_list[0]),
+                #                     batch_target_gestures.view(-1))
 
                 # ** new -
-                loss = torch.tensor(0)
-                for p in predictions1:
-                    loss += self.ce(p.transpose(2, 1).contiguous().view(-1, self.num_classes_list[0]),
-                                    batch_target_gestures.view(-1))
+                loss = self.ce(predictions1.contiguous().view(-1,self.num_classes_list[0]), batch_target_gestures.view(-1))
 
                 epoch_loss += loss.item()
                 loss.backward()
                 optimizer.step()
-                _, predicted1 = torch.max(predictions1[-1].data, 1)
+                # _, predicted1 = torch.max(predictions1[-1], 1)
+                _, predicted1 = torch.max(predictions1, 2)
                 for i in range(len(lengths)):
-                    correct1 += (predicted1[i][:lengths[i]] == batch_target_gestures[i][:lengths[i]]).float().sum().item()
+                    correct1 += (predicted1[i][:lengths[i]] == batch_target_gestures[i][:lengths[i]].squeeze()).float().sum().item()
                     total1 += lengths[i]
 
                 pbar.update(1)
@@ -139,7 +141,7 @@ class Trainer:
 
             train_results_list.append(train_results)
 
-            if epoch % eval_rate == 0:
+            if (epoch+1) % eval_rate == 0:
                 print(colored("epoch: " + str(epoch + 1) + " model evaluation", 'red', attrs=['bold']))
                 results = {"epoch": epoch}
 
@@ -147,47 +149,80 @@ class Trainer:
                 # results.update(self.evaluate(eval_dict, batch_gen))
 
                 # ** new -
-                results.update(self.evaluate(eval_dict, test_data_loader))
+                results.update(self.evaluate(eval_dict, test_data_loader,list_of_vids))
                 eval_results_list.append(results)
                 # if args.upload is True:  # **controlled by wandb mode
                 wandb.log(results)
 
         return eval_results_list, train_results_list
 
-    def evaluate(self, eval_dict, batch_gen):
+    # ** old:
+    # def evaluate(self, eval_dict, batch_gen):
+    # ** new:
+    def evaluate(self, eval_dict, test_data_loader,list_of_vids):
+        # ** old:
+        # device = eval_dict["device"]
+        # features_path = eval_dict["features_path"]
         results = {}
-        device = eval_dict["device"]
-        features_path = eval_dict["features_path"]
         sample_rate = eval_dict["sample_rate"]
-        actions_dict_gesures = eval_dict["actions_dict_gestures"]
+        actions_dict_gestures = eval_dict["actions_dict_gestures"]
         ground_truth_path_gestures = eval_dict["gt_path_gestures"]
 
         self.model.eval()
         with torch.no_grad():
-            self.model.to(device)
-            list_of_vids = batch_gen.list_of_valid_examples
+            self.model.to(self.device)
+
             recognition1_list = []
 
-            for seq in list_of_vids:
+            # ** old
+            # list_of_vids = batch_gen.list_of_valid_examples
+            # for seq in list_of_vids:
                 # print vid
-                features = np.load(features_path + seq.split('.')[0] + '.npy')
-                features = features[:, ::sample_rate]
-                input_x = torch.tensor(features, dtype=torch.float)
-                input_x.unsqueeze_(0)
-                input_x = input_x.to(device)
-                predictions1 = self.model(input_x, torch.tensor([features.shape[1]]))
-                predictions1 = predictions1[0].unsqueeze_(0)
+
+            # ** new
+            for batch in test_data_loader:
+                batch_input, batch_target, lengths, mask = batch
+                batch_input = {input: data.to(self.device) for input,data in batch_input.items()}
+                batch_target = {input: data.to(self.device) for input,data in batch_target.items()}
+                batch_target_gestures = batch_target['gestures']
+                mask = mask.to(self.device)
+
+                # ** old
+
+                # features = np.load(features_path + seq.split('.')[0] + '.npy')
+                # features = features[:, ::sample_rate]
+                # input_x = torch.tensor(features, dtype=torch.float)
+                # input_x.unsqueeze_(0)
+                # input_x = input_x.to(device)
+                # predictions1 = self.model(input_x, torch.tensor([features.shape[1]]))
+                # predictions1 = predictions1[0].unsqueeze_(0)
+
+                # **new
+                predictions1 = self.model(batch_input, lengths, mask)
+                predictions1 = predictions1[-1].permute(0, 2, 1)
                 predictions1 = torch.nn.Softmax(dim=2)(predictions1)
 
-                _, predicted1 = torch.max(predictions1[-1].data, 1)
-                predicted1 = predicted1.squeeze()
+                # **old
+                # _, predicted1 = torch.max(predictions1[-1].data, 1)
 
-                recognition1 = []
-                for i in range(len(predicted1)):
-                    recognition1 = np.concatenate((recognition1, [list(actions_dict_gesures.keys())[
-                                                                      list(actions_dict_gesures.values()).index(
-                                                                          predicted1[i].item())]] * sample_rate))
-                recognition1_list.append(recognition1)
+                # ** new
+                _, predicted1 = torch.max(predictions1, 2)
+
+                # ** old
+                # predicted1 = predicted1.squeeze()
+
+                # for i in range(len(lengths)):
+                #     correct1 += (predicted1[i][:lengths[i]] == batch_target_gestures[i][:lengths[i]].squeeze()).float().sum().item()
+
+
+                for j in range(len(lengths)):
+                    sur_prediction = predicted1[j][:lengths[j]]
+                    recognition1 = []
+                    for i in range(len(sur_prediction)):
+                        recognition1 = np.concatenate((recognition1, [list(actions_dict_gestures.keys())[
+                                                                          list(actions_dict_gestures.values()).index(
+                                                                              sur_prediction[i].item())]] * sample_rate))
+                    recognition1_list.append(recognition1)
 
             print("gestures results")
             results1, _ = metric_calculation(ground_truth_path=ground_truth_path_gestures,
