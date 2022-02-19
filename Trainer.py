@@ -1,5 +1,6 @@
 # Created by Adam Goldbraikh - Scalpel Lab Technion
 # parts of the code were adapted from: https://github.com/sj-li/MS-TCN2?utm_source=catalyzex.com
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from model import *
 import sys
@@ -15,7 +16,7 @@ import tqdm
 
 
 class Trainer:
-    def __init__(self,  num_classes, model , task="gestures", device="cuda"):
+    def __init__(self, num_classes, model, task="gestures", device="cuda"):
 
         self.model = model
         self.device = device
@@ -23,7 +24,8 @@ class Trainer:
         self.num_classes_list = [num_classes]
         self.task = task
 
-    def train(self, train_data_loader, test_data_loader, num_epochs, learning_rate, eval_dict,list_of_vids,args):
+    def train(self, train_data_loader, test_data_loader, num_epochs, learning_rate, eval_dict, list_of_vids, args,
+              early_stop=11):
         # ** batch_gen changed to train_data_loader and test_data_loader
 
         # ** old -
@@ -49,6 +51,12 @@ class Trainer:
         self.model.to(self.device)
         eval_rate = eval_dict["eval_rate"]
         optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
+
+        # ** new -
+        schedular = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=5, threshold=1e-2,
+                                      threshold_mode='abs', verbose=True)
+        best_acc = 0
+        steps_no_improve = 0
         for epoch in range(num_epochs):
             pbar = tqdm.tqdm(total=number_of_batches)
             epoch_loss = 0
@@ -64,8 +72,8 @@ class Trainer:
             # ** new -
             for batch in train_data_loader:
                 batch_input, batch_target, lengths, mask = batch
-                batch_input = {input: data.to(self.device) for input,data in batch_input.items()}
-                batch_target = {input: data.to(self.device) for input,data in batch_target.items()}
+                batch_input = {input: data.to(self.device) for input, data in batch_input.items()}
+                batch_target = {input: data.to(self.device) for input, data in batch_target.items()}
                 batch_target_gestures = batch_target['gestures']
                 mask = mask.to(self.device)
 
@@ -78,10 +86,9 @@ class Trainer:
 
                 # ** old -
                 # predictions1 = self.model(batch_input, lengths)
-                #TODO
                 # ** new -
                 predictions1 = self.model(batch_input, lengths, mask)
-                predictions1 = predictions1[-1].permute(0,2,1)
+                predictions1 = predictions1[-1].permute(0, 2, 1)
 
                 # ** old -
                 # loss = 0
@@ -90,7 +97,8 @@ class Trainer:
                 #                     batch_target_gestures.view(-1))
 
                 # ** new -
-                loss = self.ce(predictions1.contiguous().view(-1,self.num_classes_list[0]), batch_target_gestures.view(-1))
+                loss = self.ce(predictions1.contiguous().view(-1, self.num_classes_list[0]),
+                               batch_target_gestures.view(-1))
 
                 epoch_loss += loss.item()
                 loss.backward()
@@ -98,10 +106,15 @@ class Trainer:
                 # _, predicted1 = torch.max(predictions1[-1], 1)
                 _, predicted1 = torch.max(predictions1, 2)
                 for i in range(len(lengths)):
-                    correct1 += (predicted1[i][:lengths[i]] == batch_target_gestures[i][:lengths[i]].squeeze()).float().sum().item()
+                    correct1 += (predicted1[i][:lengths[i]] == batch_target_gestures[i][
+                                                               :lengths[i]].squeeze()).float().sum().item()
                     total1 += lengths[i]
 
                 pbar.update(1)
+
+            # ** new -
+            acc = correct1 / total1
+            schedular.step(acc)
 
             # ** old -
             # batch_gen.reset()
@@ -112,12 +125,9 @@ class Trainer:
             # if not self.debugging:
             #     torch.save(self.model.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".model")
             #     torch.save(optimizer.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".opt")
+            # ** new is at end of loop
 
-            # **new:
-            torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "model.h5"))
-            torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "optimizer.h5"))
             dt_string = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-
             # ** old -
             # print(colored(dt_string, 'green',
             #               attrs=['bold']) + "  " + "[epoch %d]: train loss = %f,   train acc = %f" % (epoch + 1,
@@ -141,7 +151,7 @@ class Trainer:
 
             train_results_list.append(train_results)
 
-            if (epoch+1) % eval_rate == 0:
+            if (epoch + 1) % eval_rate == 0:
                 print(colored("epoch: " + str(epoch + 1) + " model evaluation", 'red', attrs=['bold']))
                 results = {"epoch": epoch}
 
@@ -149,17 +159,30 @@ class Trainer:
                 # results.update(self.evaluate(eval_dict, batch_gen))
 
                 # ** new -
-                results.update(self.evaluate(eval_dict, test_data_loader,list_of_vids))
+                results.update(self.evaluate(eval_dict, test_data_loader, list_of_vids))
                 eval_results_list.append(results)
+
                 # if args.upload is True:  # **controlled by wandb mode
                 wandb.log(results)
+
+            # **new:
+            if acc > best_acc + 1e-2:
+                torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "model.h5"))
+                torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "optimizer.h5"))
+
+                best_acc = acc
+                steps_no_improve = 0
+            else:
+                steps_no_improve += 1
+                if steps_no_improve >= early_stop:
+                    break
 
         return eval_results_list, train_results_list
 
     # ** old:
     # def evaluate(self, eval_dict, batch_gen):
     # ** new:
-    def evaluate(self, eval_dict, test_data_loader,list_of_vids):
+    def evaluate(self, eval_dict, test_data_loader, list_of_vids):
         # ** old:
         # device = eval_dict["device"]
         # features_path = eval_dict["features_path"]
@@ -177,13 +200,13 @@ class Trainer:
             # ** old
             # list_of_vids = batch_gen.list_of_valid_examples
             # for seq in list_of_vids:
-                # print vid
+            # print vid
 
             # ** new
             for batch in test_data_loader:
                 batch_input, batch_target, lengths, mask = batch
-                batch_input = {input: data.to(self.device) for input,data in batch_input.items()}
-                batch_target = {input: data.to(self.device) for input,data in batch_target.items()}
+                batch_input = {input: data.to(self.device) for input, data in batch_input.items()}
+                batch_target = {input: data.to(self.device) for input, data in batch_target.items()}
                 batch_target_gestures = batch_target['gestures']
                 mask = mask.to(self.device)
 
@@ -214,14 +237,14 @@ class Trainer:
                 # for i in range(len(lengths)):
                 #     correct1 += (predicted1[i][:lengths[i]] == batch_target_gestures[i][:lengths[i]].squeeze()).float().sum().item()
 
-
                 for j in range(len(lengths)):
                     sur_prediction = predicted1[j][:lengths[j]]
                     recognition1 = []
                     for i in range(len(sur_prediction)):
                         recognition1 = np.concatenate((recognition1, [list(actions_dict_gestures.keys())[
                                                                           list(actions_dict_gestures.values()).index(
-                                                                              sur_prediction[i].item())]] * sample_rate))
+                                                                              sur_prediction[
+                                                                                  i].item())]] * sample_rate))
                     recognition1_list.append(recognition1)
 
             print("gestures results")

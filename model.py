@@ -43,7 +43,7 @@ class MT_RNN_dp(nn.Module):
         return outputs
 
 
-#!/usr/bin/python2.7
+# !/usr/bin/python2.7
 
 import torch
 import torch.nn as nn
@@ -67,11 +67,9 @@ class MT_SS_TCN(nn.Module):
     def forward(self, x, mask):
         out = self.gate_in(x) * mask
         for sub_stage in self.stage:
-            out = sub_stage(out,mask)
-        outputs = [gate(out)*mask for gate in self.gates_out]
+            out = sub_stage(out, mask)
+        outputs = [gate(out) * mask for gate in self.gates_out]
         return torch.cat(outputs)
-
-
 
 
 # input size = (B, F(2048), N(SURGERY))
@@ -80,7 +78,7 @@ class MS_TCN_PP(nn.Module):
         super(MS_TCN_PP, self).__init__()
         stages = []
         dilations_inc = [2 ** i for i in range(num_layers)]
-        dilations_dec = [2**i for i in range(num_layers - 1, -1, -1)]
+        dilations_dec = [2 ** i for i in range(num_layers - 1, -1, -1)]
         dilations = list(zip(dilations_inc, dilations_dec))
         dilation_layer = DualDilatedResidualLayer
         in_dim = dim
@@ -94,16 +92,16 @@ class MS_TCN_PP(nn.Module):
             #                             nn.Softmax()))
             stages.append(SS_TCN(dilations, dilation_layer, num_f_maps, in_dim, num_classes, **kw))
         # self.stages = nn.ModuleList(stages)
-        self.stages = stages
+        self.stages = nn.ModuleList(stages)
 
     def forward(self, x, mask):
-        out = self.stages[0](x,mask)*mask
-        outputs=[out.unsqueeze(0)]
+        out = self.stages[0](x, mask) * mask
+        outputs = [out.unsqueeze(0)]
         for s in self.stages[1:]:
-            out = s(self.softmax(out)*mask, mask) * mask
+            out = s(self.softmax(out) * mask, mask) * mask
             outputs.append(out.unsqueeze(0))
-        return torch.cat(outputs,dim=0)
-            # outputs.append(out)
+        return torch.cat(outputs, dim=0)
+        # outputs.append(out)
         # return torch.cat(outputs)  # i changed this and changed MASK
 
 
@@ -121,14 +119,13 @@ class MS_TCN(nn.Module):
         self.stages = nn.ModuleList(stages)
         # self.stages = stages
 
-
     def forward(self, x, mask):
-        out = self.stages[0](x,mask)*mask
-        outputs=[out.unsqueeze(0)]
+        out = self.stages[0](x, mask) * mask
+        outputs = [out.unsqueeze(0)]
         for s in self.stages[1:]:
-            out = s(self.softmax(out)*mask, mask) * mask
+            out = s(self.softmax(out) * mask, mask) * mask
             outputs.append(out.unsqueeze(0))
-        return torch.cat(outputs,dim=0)
+        return torch.cat(outputs, dim=0)
 
 
 class SS_TCN(nn.Module):
@@ -145,7 +142,7 @@ class SS_TCN(nn.Module):
     def forward(self, x, mask):
         out = self.gate_in(x) * mask
         for sub_stage in self.stage:
-            out = sub_stage(out,mask)
+            out = sub_stage(out, mask)
         out = self.gate_out(out)
         return out * mask
 
@@ -160,7 +157,7 @@ class DilatedResidualLayer(nn.Module):
             nn.Dropout(dropout)
         )
 
-    def forward(self, x,mask):
+    def forward(self, x, mask):
         out = self.layer(x)
         return (x + out) * mask
 
@@ -177,7 +174,8 @@ class DualDilatedResidualLayer(nn.Module):
             nn.Conv1d(out_channels, out_channels, 1),
             nn.Dropout(dropout)
         )
-##FIXME
+
+    ##FIXME
     def forward(self, x, mask):
         inc = self.conv_inc(x.clone().detach())
         dec = self.conv_dec(x.clone().detach())
@@ -231,7 +229,6 @@ class SeperateFeatureExtractor(nn.Module):
             except KeyError:
                 raise RuntimeError(f"received feature extractor for {key} but it is not present in x")
         return features  # FIXME
-
 
 # MODEL
 # init - FE_model, TS_model

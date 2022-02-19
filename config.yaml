@@ -1,0 +1,32 @@
+program: train_experiment.py
+method: bayes
+project: MSTCN
+entity: surgical_data_science
+metric:
+  name: "Acc gesture"
+  goal: maximize
+parameters:
+  dropout:
+    min: 0.05
+    max: 0.4
+  num_stages:
+    min: 2
+    max: 5
+  num_layers:
+    min: 3
+    max: 7
+  num_f_maps:
+    values: [ 256, 512, 1024 ]
+  activation:
+    values: [ 'relu','lrelu','tanh' ]
+  num_epochs:
+    min: 100
+    max: 1000
+  time_series_model:
+    values: [ 'MSTCN', 'MSTCN++' ]
+  lr:
+    min: 0.0001
+    max: 0.1
+  #    distribution:
+  normalization:
+    values: [ 'none', 'Min-max', 'Standard' ]

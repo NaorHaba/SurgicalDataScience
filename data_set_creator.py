@@ -14,22 +14,23 @@ import torch.nn as nn
 import pandas as pd
 from PIL import Image
 import tqdm
-from model import MS_TCN, SeperateFeatureExtractor,SurgeryModel, MS_TCN_PP
+from model import MS_TCN, SeperateFeatureExtractor, SurgeryModel, MS_TCN_PP
 
 STD_PARAMS_PATH = '/datashare/APAS/folds/std_params_fold_'
 
+
 class Kinematics_Transformer():
     def __init__(self, params_path, normalization):
-        params = pd.read_csv(params_path,index_col=0).values
+        params = pd.read_csv(params_path, index_col=0).values
         self.max = params[0, :]
         self.min = params[1, :]
         self.mean = params[2, :]
         self.std = params[3, :]
-        self.transform = self.min_max if normalization== "Min-max"\
-            else self.standard if normalization == "Standard"\
+        self.transform = self.min_max if normalization == "Min-max" \
+            else self.standard if normalization == "Standard" \
             else self.tensor_float
 
-    def tensor_float(self,features):
+    def tensor_float(self, features):
         return torch.tensor(features).float()
 
     def min_max(self, features):
@@ -43,7 +44,6 @@ class Kinematics_Transformer():
         denominator = self.std
         features = (numerator / denominator)
         return torch.tensor(features).float()
-
 
 
 class FeatureDataset(Dataset):
@@ -62,7 +62,7 @@ class FeatureDataset(Dataset):
         features = {}
         labels = {}
         for data_t in self.data_names:
-            if data_t.split('.')[-1] =='pt':
+            if data_t.split('.')[-1] == 'pt':
                 features[data_t.split('_')[0]] = (torch.load(os.path.join(surgery_folder, data_t))).squeeze()
                 if self.image_transform:
                     features[data_t.split('_')[0]] = self.image_transform(features[data_t.split('_')[0]]).float()
@@ -72,15 +72,17 @@ class FeatureDataset(Dataset):
                     features[data_t.split('.')[0]] = self.kinematics_transform(features[data_t.split('.')[0]]).float()
         for task in self.tasks:
             original_labels = np.load(os.path.join(surgery_folder, task + '.npy'))
-            original_labels =np.expand_dims(original_labels, axis=0) if len(original_labels.shape)==1 else original_labels
-            labels[task] = np.array([np.array([int(original_labels[i,j][1]) for j in range(original_labels.shape[1]) ])
+            original_labels = np.expand_dims(original_labels, axis=0) if len(
+                original_labels.shape) == 1 else original_labels
+            labels[task] = np.array([np.array([int(original_labels[i, j][1]) for j in range(original_labels.shape[1])])
                                      for i in range(original_labels.shape[0])]).T
             if self.target_transform:
-                labels[task] =self.target_transform(labels[task]).long()
+                labels[task] = self.target_transform(labels[task]).long()
         return features, labels
 
     def __len__(self):
         return len(self.surgery_folders)
+
 
 def collate_inputs(batch):
     input_lengths = []
@@ -111,7 +113,8 @@ def collate_inputs(batch):
             input_lengths_tmp.append(sample_labels.shape[0])
             batch_labels[input_name].append(sample_labels)
         # pad
-        batch_labels[input_name] = torch.nn.utils.rnn.pad_sequence(batch_labels[input_name], padding_value=-100, batch_first=True)
+        batch_labels[input_name] = torch.nn.utils.rnn.pad_sequence(batch_labels[input_name], padding_value=-100,
+                                                                   batch_first=True)
         input_lengths.append(input_lengths_tmp)
 
     # sanity check
@@ -146,7 +149,7 @@ def collate_inputs(batch):
 #         dl_train = DataLoader(ds_train, batch_size=batch_size, collate_fn=collate_inputs)
 #         ds_val = FeatureDataset(val_surgery_list, data_types, tasks,kinematics_transform=k_transform)
 #         dl_val = DataLoader(ds_val, batch_size=batch_size, collate_fn=collate_inputs)
-#         #TODO: adjust, add to wandb, normalize kinematicks
+#         #TODO: adjust, add to wandb, normalize kinematicksד
 #         mstcn = MS_TCN(3, 5, 10, 2048 * 2 + 36, 3)
 #         sfe = SeperateFeatureExtractor(nn.Identity(), nn.Identity(), nn.Identity())
 #         sm = SurgeryModel(sfe, mstcn)
