@@ -16,7 +16,7 @@ parameters:
     min: 3
     max: 7
   num_f_maps:
-    values: [ 256, 512, 1024 ]
+    values: [ 32, 64, 128, 256, 512, 1024 ]
   activation:
     values: [ 'relu','lrelu','tanh' ]
   num_epochs:
