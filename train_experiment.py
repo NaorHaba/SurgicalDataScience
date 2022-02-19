@@ -145,6 +145,16 @@ def eval_dict_func(args):
                  "gt_path_tools_right": gt_path_tools_right, "task": args.task}
     return eval_dict
 
+def reset_wandb_env():
+    exclude = {
+        "WANDB_PROJECT",
+        "WANDB_ENTITY",
+        "WANDB_API_KEY",
+    }
+    for k, v in os.environ.items():
+        if k.startswith("WANDB_") and k not in exclude:
+            del os.environ[k]
+
 
 if __name__ == '__main__':
     args = parsing()
@@ -167,6 +177,7 @@ if __name__ == '__main__':
     for split_num in list_of_splits:
         args.test_split = split_num
         logger.info("working on split number: " + str(split_num))
+        reset_wandb_env()
         # model_dir = "./models/" + args.dataset + "/" + experiment_name + "/split_" + split_num
         # if not args.debugging:
         #     if not os.path.exists(model_dir):
