@@ -24,7 +24,7 @@ EXTRACTED_DATA_PATH = '/home/student/Project/data/'
 FOLDS_FOLDER_PATH = '/datashare/APAS/folds'
 STD_PARAMS_PATH = '/datashare/APAS/folds/std_params_fold_'
 GESTURES_NUM_CLASSES = 6
-# TOOLS_NUM_CLASSES = 4
+TOOLS_NUM_CLASSES = 4
 SAMPLE_RATE = 6
 ACTIVATIONS = {'relu': nn.ReLU, 'lrelu': nn.LeakyReLU, 'tanh': nn.Tanh}
 
@@ -37,11 +37,14 @@ def parsing():
                         default=['top', 'side', 'kinematics'])
     parser.add_argument('--data_names', choices=['top_resnet.pt', 'side_resnet.pt', 'kinematics.npy'], nargs='+',
                         default=['top_resnet.pt', 'side_resnet.pt', 'kinematics.npy'])
-    parser.add_argument('--task', choices=['tools', 'gestures'], nargs='+', default=['gestures'])
+    # parser.add_argument('--task', choices=[['gestures'],['gestures','tools_left','tools_right']], nargs='+', default=['gestures'])
+    # parser.add_argument('--task', nargs='+', default=['gestures'])
+    parser.add_argument('--task', default='gestures')
+
     parser.add_argument('--test_split', choices=[0, 1, 2, 3, 4], default=None)
 
     parser.add_argument('--wandb_mode', choices=['online', 'offline', 'disabled'], default='online', type=str)
-    parser.add_argument('--project', default="MSTCN", type=str)
+    parser.add_argument('--project', default="MSTCN_runs", type=str)
     parser.add_argument('--entity', default="surgical_data_science", type=str)
     parser.add_argument('--group', default=dt_string + " group ", type=str)
     parser.add_argument('--use_gpu_num', default="0", type=str)
@@ -59,7 +62,7 @@ def parsing():
     parser.add_argument('--batch_size', default=6, type=int)
     parser.add_argument('--normalization', choices=['none', 'Min-max', 'Standard'], default='Min-max', type=str)
     parser.add_argument('--lr', default=0.03, type=float)
-    parser.add_argument('--num_epochs', default=1, type=int)
+    parser.add_argument('--num_epochs', default=2, type=int)
 
     args = parser.parse_args()
 
@@ -108,7 +111,7 @@ def create_model(args):
     activation = ACTIVATIONS[args.activation]
     # num_stages, num_layers, num_f_maps, dim, num_classes, activation=nn.ReLU, dropout=0.1
     ts = ts(num_stages=args.num_stages, num_layers=args.num_layers, num_f_maps=args.num_f_maps, dim=dims,
-            num_classes=GESTURES_NUM_CLASSES, activation=activation, dropout=args.dropout)
+            num_classes=args.num_classes_list, activation=activation, dropout=args.dropout)
     sm = SurgeryModel(fe, ts)
     return sm
 
@@ -135,9 +138,6 @@ def eval_dict_func(args):
         file_ptr.close()
         for a in actions:
             actions_dict_tools[a.split()[1]] = int(a.split()[0])
-        num_classes_tools = len(actions_dict_tools)
-    num_classes_gestures = len(actions_dict_gestures)
-    num_classes_list = [num_classes_gestures]
     eval_dict = {"features_path": features_path, "actions_dict_gestures": actions_dict_gestures,
                  "actions_dict_tools": actions_dict_tools, "device": device, "sample_rate": SAMPLE_RATE,
                  "eval_rate": args.eval_rate,
@@ -166,7 +166,7 @@ if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = args.use_gpu_num
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     list_of_splits = args.test_split if args.test_split else list(range(5))
-    experiment_name = args.group + " task:" + ' '.join(args.task)
+    experiment_name = args.group + " task:" + args.task
     args.group = experiment_name
     logger.info(colored(experiment_name, "green"))
     # summaries_dir = "./summaries/" + args.dataset + "/" + experiment_name
@@ -176,6 +176,12 @@ if __name__ == '__main__':
     # full_eval_results = pd.DataFrame()
     # full_train_results = pd.DataFrame()
     surgeries_per_fold, vids_per_fold = splits_dict(list_of_splits, EXTRACTED_DATA_PATH, FOLDS_FOLDER_PATH)
+    num_classes_list = []
+    args.task = args.task.split(', ')
+    print(args.task)
+    for task in args.task:
+        num_classes_list += [GESTURES_NUM_CLASSES] if task=='gestures' else [TOOLS_NUM_CLASSES]
+    args.num_classes_list = num_classes_list
     for split_num in list_of_splits:
         args.test_split = split_num
         logger.info("working on split number: " + str(split_num))
@@ -192,9 +198,8 @@ if __name__ == '__main__':
         dl_train = DataLoader(ds_train, batch_size=args.batch_size, collate_fn=collate_inputs)
         ds_val = FeatureDataset(val_surgery_list, args.data_names, args.task, k_transform)
         dl_val = DataLoader(ds_val, batch_size=args.batch_size, collate_fn=collate_inputs)
-        # TODO
         model = create_model(args)
-        trainer = Trainer(num_classes=GESTURES_NUM_CLASSES, model=model, task=args.task, device=device)
+        trainer = Trainer(num_classes=args.num_classes_list, model=model, task=args.task, device=device)
         eval_dict = eval_dict_func(args)
         eval_results, train_results = trainer.train(dl_train, dl_val, num_epochs=args.num_epochs, learning_rate=args.lr,
                                                     eval_dict=eval_dict, list_of_vids=vids_per_fold[split_num],
