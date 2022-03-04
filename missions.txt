@@ -1,0 +1,17 @@
+run configurations
+	- Only kinematics (if not run by now)
+	- Augmentations (Also change hands labels)
+	- Linear extraction for kinematics
+	
+		- for all runs reduce searching space
+		
+prepare code for submission
+	- handle # TODO, # FIXME, irrelevant notes
+	- document
+	- README
+	- prepare model files for submission
+	
+article
+	- architectures explanations
+	- introduction
+	- results
