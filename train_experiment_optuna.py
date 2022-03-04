@@ -218,6 +218,8 @@ def main(trial):
         train_surgery_list = [surgeries_per_fold[fold] if fold != split_num else [] for fold in surgeries_per_fold]
         if args.augmentation and ('top' in data_types_str or 'side' in data_types_str):
             train_surgery_list += [surgeries_augmented_per_fold[fold] if fold != split_num else [] for fold in surgeries_augmented_per_fold]
+        else:
+            args.augmentation=False
         train_surgery_list = list(itertools.chain(*train_surgery_list))
         val_surgery_list = surgeries_per_fold[split_num]
         k_transform = Kinematics_Transformer(f'{STD_PARAMS_PATH}{split_num}.csv', args.normalization).transform
