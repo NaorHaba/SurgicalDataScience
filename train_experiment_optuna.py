@@ -33,7 +33,7 @@ ACTIVATIONS = {'relu': nn.ReLU, 'lrelu': nn.LeakyReLU, 'tanh': nn.Tanh}
 def parsing():
     dt_string = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     parser = argparse.ArgumentParser()
-    parser.add_argument('--tune_name', default="HPT_Tune_2")
+    parser.add_argument('--tune_name', default="HPT_Tune_3")
 
     parser.add_argument('--dataset', choices=['APAS'], default="APAS")
     parser.add_argument('--data_types', choices=['top', 'side', 'kinematics'], nargs='+',
@@ -245,6 +245,8 @@ def main(trial):
                                                                   list_of_vids=vids_per_fold[split_num],
                                                                   args=args, test_split=split_num)
         accs.append(best_results['Acc gesture'])
+        # if split_num==0 and best_results['Acc gesture']<=70:
+        #     return best_results['Acc gesture']
     return np.mean(accs)
 
 # if not args.debugging:

@@ -2,7 +2,7 @@ run configurations
 	- Only kinematics (if not run by now)
 	- Augmentations (Also change hands labels)
 	- Linear extraction for kinematics
-	
+	- run original architecture for comparison
 		- for all runs reduce searching space
 		
 prepare code for submission
