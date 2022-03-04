@@ -172,10 +172,10 @@ def reset_wandb_env():
 def main(trial):
     args = parsing()
     sample_rate = 6  # downsample the frequency to 5Hz - the data files created in feature_extractor use sample rate=6
-    # args.dropout = trial.suggest_float('dropout',0.05,0.4)
-    # args.num_stages = trial.suggest_int('num_stages', 2,5)
-    # args.num_layers = trial.suggest_int('num_layers', 3,7)
-    # args.num_f_maps = trial.suggest_categorical('num_f_maps',[32, 64, 128, 256, 512, 1024,2048 ])
+    # args.dropout = trial.suggest_float('dropout',0.05,0.20)
+    # args.num_stages = trial.suggest_int('num_stages', 3,5)
+    # args.num_layers = trial.suggest_int('num_layers', 5,7)
+    # args.num_f_maps = trial.suggest_categorical('num_f_maps',[ 512, 1024,2048 ])
     # args.activation = trial.suggest_categorical('activation',['relu','lrelu','tanh' ])
     args.time_series_model = trial.suggest_categorical('time_series_model',['MSTCN', 'MSTCN++' ])
     # args.lr = trial.suggest_float('lr',0.0001,0.1)
@@ -191,6 +191,7 @@ def main(trial):
     logger.info(args)  # TODO : what is this?
     os.environ["CUDA_VISIBLE_DEVICES"] = args.use_gpu_num
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print('device:' ,device)
     list_of_splits = args.test_split if args.test_split else list(range(5))
     experiment_name = args.group + " task:" + args.task_str
     args.group = experiment_name
