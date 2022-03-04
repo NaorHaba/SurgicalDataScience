@@ -25,7 +25,7 @@ class Trainer:
         self.num_classes_list = num_classes
         self.task = task
 
-    def train(self, train_data_loader, test_data_loader, num_epochs, learning_rate, eval_dict, list_of_vids, args,
+    def train(self, train_data_loader, test_data_loader, num_epochs, learning_rate, eval_dict, list_of_vids, args,test_split,
               early_stop=11):
         # ** batch_gen changed to train_data_loader and test_data_loader
 
@@ -39,15 +39,14 @@ class Trainer:
 
         eval_results_list = []
         train_results_list = []
-        print(args.dataset + " " + args.group + " " + args.dataset + " dataset " + "split: " + str(args.test_split))
+        print(args.dataset + " " + args.group + " " + args.dataset + " dataset " + "split: " + str(test_split))
 
         # if args.upload is True:
         wandb.init(project=args.project, group=args.group,
-                   name="split: " + str(args.test_split), entity=args.entity,  # ** we added entity, mode
-                   mode=args.wandb_mode, reinit=True)
-        delattr(args, 'test_split')
-        wandb.config.update(args)
-
+                   name="split: " + str(test_split), entity=args.entity,  # ** we added entity, mode
+                   mode=args.wandb_mode)
+        # delattr(args, 'test_split')
+        wandb.config.update(args,allow_val_change=True)
         self.model.train()
         self.model.to(self.device)
         eval_rate = eval_dict["eval_rate"]
@@ -57,6 +56,7 @@ class Trainer:
         schedular = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=5, threshold=1e-2,
                                       threshold_mode='abs', verbose=True)
         best_acc = 0
+        best_results = {'Acc gesture': 0, 'epoch':0}
         steps_no_improve = 0
         for epoch in range(num_epochs):
             pbar = tqdm.tqdm(total=number_of_batches)
@@ -178,6 +178,10 @@ class Trainer:
                 results.update(self.evaluate(eval_dict, test_data_loader, list_of_vids))
                 eval_results_list.append(results)
 
+                if results['Acc gesture']> best_results['Acc gesture']+1e-2:
+                    best_results.update(results)
+                    best_results['epoch'] = epoch
+
                 # if args.upload is True:  # **controlled by wandb mode
                 wandb.log(results)
 
@@ -187,13 +191,17 @@ class Trainer:
                 torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "optimizer.h5"))
 
                 best_acc = acc
+                best_epoch = epoch
                 steps_no_improve = 0
             else:
                 steps_no_improve += 1
                 if steps_no_improve >= early_stop:
                     break
 
-        return eval_results_list, train_results_list
+
+        wandb.log({f'best_{k}':v for k,v in best_results.items()})
+        wandb.finish()
+        return eval_results_list, train_results_list, best_results
 
     # ** old:
     # def evaluate(self, eval_dict, batch_gen):

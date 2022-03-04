@@ -5,7 +5,7 @@ from functools import partial
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
-
+import numpy as np
 from Trainer import Trainer
 from batch_gen import BatchGenerator
 import os
@@ -18,6 +18,7 @@ import logging
 import itertools
 from data_set_creator import FeatureDataset, collate_inputs, Kinematics_Transformer
 from model import MS_TCN, MS_TCN_PP, SeperateFeatureExtractor, SurgeryModel
+import optuna
 
 logger = logging.getLogger(__name__)
 EXTRACTED_DATA_PATH = '/home/student/Project/data/'
@@ -32,6 +33,8 @@ ACTIVATIONS = {'relu': nn.ReLU, 'lrelu': nn.LeakyReLU, 'tanh': nn.Tanh}
 def parsing():
     dt_string = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     parser = argparse.ArgumentParser()
+    parser.add_argument('--tune_name', default="HPT_Tune_2")
+
     parser.add_argument('--dataset', choices=['APAS'], default="APAS")
     parser.add_argument('--data_types', choices=['top', 'side', 'kinematics'], nargs='+',
                         default=['top', 'side', 'kinematics'])
@@ -53,17 +56,18 @@ def parsing():
 
     parser.add_argument('--time_series_model', choices=['MSTCN', 'MSTCN++'], default='MSTCN++', type=str)
     parser.add_argument('--feature_extractor', choices=['separate'], default='separate', type=str)
+    parser.add_argument('--augmentation', default=True, type=bool)
 
     parser.add_argument('--num_stages', default=3, type=int)
-    parser.add_argument('--num_layers', default=5, type=int)
-    parser.add_argument('--num_f_maps', default=10, type=int)
-    parser.add_argument('--activation', choices=['relu', 'lrelu', 'tanh'], default='relu', type=str)
-    parser.add_argument('--dropout', default=0.1, type=float)
+    parser.add_argument('--num_layers', default=7, type=int)
+    parser.add_argument('--num_f_maps', default=1024, type=int)
+    parser.add_argument('--activation', choices=['relu', 'lrelu', 'tanh'], default='tanh', type=str)
+    parser.add_argument('--dropout', default=0.104, type=float)
 
     parser.add_argument('--eval_rate', default=1, type=int)
     parser.add_argument('--batch_size', default=6, type=int)
-    parser.add_argument('--normalization', choices=['none', 'Min-max', 'Standard'], default='Min-max', type=str)
-    parser.add_argument('--lr', default=0.03, type=float)
+    parser.add_argument('--normalization', choices=['none', 'Min-max', 'Standard'], default='Standard', type=str)
+    parser.add_argument('--lr', default=0.008766, type=float)
     parser.add_argument('--num_epochs', default=150, type=int)
 
     args = parser.parse_args()
@@ -84,6 +88,7 @@ def set_seed(seed=1538574472):
 def splits_dict(list_of_splits, data_path, folds_folder):
     surgeries_per_fold = {}
     vids_per_fold = {}
+    surgeries_augmented_per_fold = {}
     for split in list_of_splits:
         fold_path = os.path.join(data_path, 'fold_' + str(split))
         file_ptr = open(os.path.join(folds_folder, f'fold {split}.txt'), 'r')
@@ -93,8 +98,10 @@ def splits_dict(list_of_splits, data_path, folds_folder):
             vids_list.remove('P039_balloon2.csv')
         fold_sur_files = [os.path.join(fold_path, x.split('.')[0]) for x in vids_list]
         surgeries_per_fold[split] = fold_sur_files
+        fold_sur_augmented_files = [os.path.join(fold_path+'_augmentation', x.split('.')[0]) for x in vids_list]
+        surgeries_augmented_per_fold[split] = fold_sur_augmented_files
         vids_per_fold[split] = vids_list
-    return surgeries_per_fold, vids_per_fold
+    return surgeries_per_fold, vids_per_fold, surgeries_augmented_per_fold
 
 
 def create_model(args):
@@ -118,7 +125,7 @@ def create_model(args):
     return sm
 
 
-def eval_dict_func(args):
+def eval_dict_func(args, device):
     folds_folder = "/datashare/" + args.dataset + "/folds"
     features_path = "/datashare/" + args.dataset + "/kinematics_npy/"
     gt_path_gestures = "/datashare/" + args.dataset + "/transcriptions_gestures/"
@@ -161,9 +168,24 @@ def reset_wandb_env():
     #     del os.environ['WANDB_RUN_ID']
 
 
-if __name__ == '__main__':
+def main(trial):
     args = parsing()
-    # sample_rate = 6  # downsample the frequency to 5Hz - the data files created in feature_extractor use sample rate=6
+    sample_rate = 6  # downsample the frequency to 5Hz - the data files created in feature_extractor use sample rate=6
+    # args.dropout = trial.suggest_float('dropout',0.05,0.4)
+    # args.num_stages = trial.suggest_int('num_stages', 2,5)
+    # args.num_layers = trial.suggest_int('num_layers', 3,7)
+    # args.num_f_maps = trial.suggest_categorical('num_f_maps',[32, 64, 128, 256, 512, 1024,2048 ])
+    # args.activation = trial.suggest_categorical('activation',['relu','lrelu','tanh' ])
+    args.time_series_model = trial.suggest_categorical('time_series_model',['MSTCN', 'MSTCN++' ])
+    # args.lr = trial.suggest_float('lr',0.0001,0.1)
+    # args.normalization = trial.suggest_categorical('normalization',  ['Min-max', 'Standard'])
+    args.augmentation = trial.suggest_categorical('augmentation',  [True, False])
+    args.task_str = trial.suggest_categorical('task_str',['gestures', 'gestures, tools_left, tools_right'])
+    data_types_str = trial.suggest_categorical('data_str', ['top,side,kinematics','top,side','top,kinematics',
+                                                            'side,kinematics','top','side','kinematics'])
+    args.data_types = data_types_str.split(',')
+    args.data_names = [f'{x}_resnet.pt' if x!='kinematics' else f'{x}.npy' for x in args.data_types]
+    print(args.data_names)
     set_seed()
     logger.info(args)  # TODO : what is this?
     os.environ["CUDA_VISIBLE_DEVICES"] = args.use_gpu_num
@@ -178,12 +200,13 @@ if __name__ == '__main__':
     #         os.makedirs(summaries_dir)
     # full_eval_results = pd.DataFrame()
     # full_train_results = pd.DataFrame()
-    surgeries_per_fold, vids_per_fold = splits_dict(list_of_splits, EXTRACTED_DATA_PATH, FOLDS_FOLDER_PATH)
+    surgeries_per_fold, vids_per_fold, surgeries_augmented_per_fold = splits_dict(list_of_splits, EXTRACTED_DATA_PATH, FOLDS_FOLDER_PATH)
     num_classes_list = []
     tasks = args.task_str.split(', ')
     for task in tasks:
         num_classes_list += [GESTURES_NUM_CLASSES] if task=='gestures' else [TOOLS_NUM_CLASSES]
     args.num_classes_list = num_classes_list
+    accs = []
     for split_num in list_of_splits:
         # args.test_split = split_num
         logger.info("working on split number: " + str(split_num))
@@ -193,6 +216,8 @@ if __name__ == '__main__':
         #     if not os.path.exists(model_dir):
         #         os.makedirs(model_dir)
         train_surgery_list = [surgeries_per_fold[fold] if fold != split_num else [] for fold in surgeries_per_fold]
+        if args.augmentation and ('top' in data_types_str or 'side' in data_types_str):
+            train_surgery_list += [surgeries_augmented_per_fold[fold] if fold != split_num else [] for fold in surgeries_augmented_per_fold]
         train_surgery_list = list(itertools.chain(*train_surgery_list))
         val_surgery_list = surgeries_per_fold[split_num]
         k_transform = Kinematics_Transformer(f'{STD_PARAMS_PATH}{split_num}.csv', args.normalization).transform
@@ -202,15 +227,14 @@ if __name__ == '__main__':
         dl_val = DataLoader(ds_val, batch_size=args.batch_size, collate_fn=collate_inputs)
         model = create_model(args)
         trainer = Trainer(num_classes=args.num_classes_list, model=model, task=tasks, device=device)
-        eval_dict = eval_dict_func(args)
-        eval_results, train_results = trainer.train(dl_train, dl_val, num_epochs=args.num_epochs, learning_rate=args.lr,
+        eval_dict = eval_dict_func(args, device)
+        eval_results, train_results, best_results = trainer.train(dl_train, dl_val, num_epochs=args.num_epochs, learning_rate=args.lr,
                                                     eval_dict=eval_dict, list_of_vids=vids_per_fold[split_num],
                                                     args=args,test_split = split_num)
+        accs.append(best_results['Acc gesture'])
+    return np.mean(accs)
 
-
-
-
-        # if not args.debugging:
+# if not args.debugging:
         #     eval_results = pd.DataFrame(eval_results)
         #     train_results = pd.DataFrame(train_results)
         #     eval_results = eval_results.add_prefix('split_' + str(split_num) + '_')

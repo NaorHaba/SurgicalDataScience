@@ -4,7 +4,7 @@ import numpy as np
 import os
 from torch.utils.data import Dataset
 import pandas as pd
-
+import re
 STD_PARAMS_PATH = '/datashare/APAS/folds/std_params_fold_'
 
 
@@ -51,9 +51,11 @@ class FeatureDataset(Dataset):
         features = {}
         labels = {}
         hands_loaded = False
+        surgery_vid_folder = str(surgery_folder)
+        surgery_folder = re.sub('_augmentation','',surgery_folder)
         for data_t in self.data_names:
             if data_t.split('.')[-1] == 'pt':
-                features[data_t.split('_')[0]] = (torch.load(os.path.join(surgery_folder, data_t))).squeeze()
+                features[data_t.split('_')[0]] = (torch.load(os.path.join(surgery_vid_folder, data_t))).squeeze()
                 if self.image_transform:
                     features[data_t.split('_')[0]] = self.image_transform(features[data_t.split('_')[0]]).float()
             else:

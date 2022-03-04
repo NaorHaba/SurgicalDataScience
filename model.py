@@ -5,28 +5,11 @@ import torch
 import torch.nn as nn
 
 
-class MT_SS_TCN(nn.Module):
-    def __init__(self, dilations, dilated_layer, num_f_maps, dim, num_classes, **kw):
-        super(SS_TCN, self).__init__()
-        self.gate_in = nn.Conv1d(dim, num_f_maps, 1)
-        self.stage = nn.Sequential(
-            *[
-                dilated_layer(dilation, num_f_maps, num_f_maps, **kw) for dilation in dilations
-            ],
-        )
-        self.gates_out = [nn.Conv1d(num_f_maps, num, 1) for num in num_classes]
-
-    def forward(self, x, mask):
-        out = self.gate_in(x) * mask
-        for sub_stage in self.stage:
-            out = sub_stage(out, mask)
-        outputs = [gate(out) * mask for gate in self.gates_out]
-        return torch.cat(outputs)
 
 
+# # input size = (B, F(2048), N(SURGERY))
 
-
-# input size = (B, F(2048), N(SURGERY))
+# #MULTI TASK
 class MS_TCN_PP(nn.Module):
     def __init__(self, num_stages, num_layers, num_f_maps, dim, num_classes, **kw):
         super(MS_TCN_PP, self).__init__()
@@ -39,27 +22,24 @@ class MS_TCN_PP(nn.Module):
         self.softmax = nn.Softmax(dim=1)
         for i in range(num_stages):
             if i != 0:
-                in_dim = num_classes
+                in_dim = sum(num_classes)
                 dilations = dilations_inc
                 dilation_layer = DilatedResidualLayer
-            # stages.append(nn.Sequential(SS_TCN(dilations, dilation_layer, num_f_maps, in_dim, num_classes, **kw),
-            #                             nn.Softmax()))
             stages.append(SS_TCN(dilations, dilation_layer, num_f_maps, in_dim, num_classes, **kw))
-        # self.stages = nn.ModuleList(stages)
         self.stages = nn.ModuleList(stages)
 
 
     def forward(self, x, mask):
-        out = self.stages[0](x, mask) * mask
-        outputs = [out.unsqueeze(0)]
+        out = [out_task*mask for out_task in self.stages[0](x.clone().detach(), mask)]
+        outputs = [[out_task.unsqueeze(0)] for out_task in out]
         for s in self.stages[1:]:
-            out = s(self.softmax(out) * mask, mask) * mask
-            outputs.append(out.unsqueeze(0))
-        return torch.cat(outputs, dim=0)
-        # outputs.append(out)
-        # return torch.cat(outputs)  # i changed this and changed MASK
+            out = [self.softmax(out_task) * mask for out_task in out]
+            out = torch.cat(out,dim=1)
+            out = [out_task*mask for out_task in s(out, mask)]
+            outputs = [outputs[i]+[out_task.unsqueeze(0)] for i,out_task in enumerate(out)]
+        return [torch.cat(outputs_task, dim=0) for outputs_task in outputs]
 
-# #MULTI TASK
+
 class MS_TCN(nn.Module):
     def __init__(self, num_stages, num_layers, num_f_maps, dim, num_classes, **kw):
         super(MS_TCN, self).__init__()
@@ -104,6 +84,39 @@ class SS_TCN(nn.Module):
         return outputs
 # #
 # one task
+# class MS_TCN_PP(nn.Module):
+#     def __init__(self, num_stages, num_layers, num_f_maps, dim, num_classes, **kw):
+#         super(MS_TCN_PP, self).__init__()
+#         stages = []
+#         dilations_inc = [2 ** i for i in range(num_layers)]
+#         dilations_dec = [2 ** i for i in range(num_layers - 1, -1, -1)]
+#         dilations = list(zip(dilations_inc, dilations_dec))
+#         dilation_layer = DualDilatedResidualLayer
+#         in_dim = dim
+#         self.softmax = nn.Softmax(dim=1)
+#         for i in range(num_stages):
+#             if i != 0:
+#                 in_dim = num_classes
+#                 dilations = dilations_inc
+#                 dilation_layer = DilatedResidualLayer
+#             # stages.append(nn.Sequential(SS_TCN(dilations, dilation_layer, num_f_maps, in_dim, num_classes, **kw),
+#             #                             nn.Softmax()))
+#             stages.append(SS_TCN(dilations, dilation_layer, num_f_maps, in_dim, num_classes, **kw))
+#         # self.stages = nn.ModuleList(stages)
+#         self.stages = nn.ModuleList(stages)
+#
+#
+#     def forward(self, x, mask):
+#         out = self.stages[0](x, mask) * mask
+#         outputs = [out.unsqueeze(0)]
+#         for s in self.stages[1:]:
+#             out = s(self.softmax(out) * mask, mask) * mask
+#             outputs.append(out.unsqueeze(0))
+#         return torch.cat(outputs, dim=0)
+#         # outputs.append(out)
+#         # return torch.cat(outputs)  # i changed this and changed MASK
+
+
 # class MS_TCN(nn.Module):
 #     def __init__(self, num_stages, num_layers, num_f_maps, dim, num_classes, **kw):
 #         super(MS_TCN, self).__init__()
