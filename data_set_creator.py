@@ -4,7 +4,7 @@ import numpy as np
 import os
 from torch.utils.data import Dataset
 import pandas as pd
-
+import re
 STD_PARAMS_PATH = '/datashare/APAS/folds/std_params_fold_'
 
 
@@ -50,9 +50,12 @@ class FeatureDataset(Dataset):
         surgery_folder = self.surgery_folders[item]
         features = {}
         labels = {}
+        hands_loaded = False
+        surgery_vid_folder = str(surgery_folder)
+        surgery_folder = re.sub('_augmentation','',surgery_folder)
         for data_t in self.data_names:
             if data_t.split('.')[-1] == 'pt':
-                features[data_t.split('_')[0]] = (torch.load(os.path.join(surgery_folder, data_t))).squeeze()
+                features[data_t.split('_')[0]] = (torch.load(os.path.join(surgery_vid_folder, data_t))).squeeze()
                 if self.image_transform:
                     features[data_t.split('_')[0]] = self.image_transform(features[data_t.split('_')[0]]).float()
             else:
@@ -60,11 +63,24 @@ class FeatureDataset(Dataset):
                 if self.kinematics_transform:
                     features[data_t.split('.')[0]] = self.kinematics_transform(features[data_t.split('.')[0]]).float()
         for task in self.tasks:
-            original_labels = np.load(os.path.join(surgery_folder, task + '.npy'))
-            original_labels = np.expand_dims(original_labels, axis=0) if len(
-                original_labels.shape) == 1 else original_labels
-            labels[task] = np.array([np.array([int(original_labels[i, j][1]) for j in range(original_labels.shape[1])])
+            if task=='gestures':
+                original_labels = np.load(os.path.join(surgery_folder, task + '.npy'))
+                original_labels = np.expand_dims(original_labels, axis=0)
+                # if len(original_labels.shape) == 1 else original_labels
+                labels[task] =np.array([np.array([int(original_labels[i, j][1]) for j in range(original_labels.shape[1])])
                                      for i in range(original_labels.shape[0])]).T
+            else:
+                if not hands_loaded:
+                    original_labels = np.load(os.path.join(surgery_folder, 'tools.npy'))
+                    hands = np.array([np.array([int(original_labels[i, j][1]) for j in range(original_labels.shape[1])])
+                                         for i in range(original_labels.shape[0])]).T
+                    hands_loaded = True
+                if 'left' in task:
+                    labels[task] = np.expand_dims(hands[:,0], axis=1)
+                if 'right' in task:
+                    labels[task] = np.expand_dims(hands[:,1], axis=1)
+            # labels[task] = np.array([np.array([int(original_labels[i, j][1]) for j in range(original_labels.shape[1])])
+            #                          for i in range(original_labels.shape[0])]).T
             if self.target_transform:
                 labels[task] = self.target_transform(labels[task]).long()
         return features, labels

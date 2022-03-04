@@ -1,6 +1,6 @@
 program: train_experiment.py
 method: bayes
-project: MSTCN
+project: MSTCN_runs_fixed
 entity: surgical_data_science
 metric:
   name: "Acc gesture"
@@ -19,9 +19,6 @@ parameters:
     values: [ 32, 64, 128, 256, 512, 1024 ]
   activation:
     values: [ 'relu','lrelu','tanh' ]
-  num_epochs:
-    min: 100
-    max: 1000
   time_series_model:
     values: [ 'MSTCN', 'MSTCN++' ]
   lr:
@@ -30,3 +27,5 @@ parameters:
   #    distribution:
   normalization:
     values: [ 'Min-max', 'Standard' ]
+  task_str:
+    values: ['gestures', 'gestures, tools_left, tools_right']
