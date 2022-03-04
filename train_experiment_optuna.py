@@ -109,10 +109,13 @@ def create_model(args):
     if args.feature_extractor == 'separate':
         fe_params = {d + '_fe': nn.Identity() for d in args.data_types}
         fe = SeperateFeatureExtractor(**fe_params)
+        feature_sizes = {'top': 2048, 'side': 2048, 'kinematics': 36}
+    elif args.feature_extractor == 'linear_kinematics':
+        fe_params = {d + '_fe': nn.Identity() for d in args.data_types if d != 'kinematics'}
+        fe_params['kinematics'] = nn.Linear(36, 256)
+        feature_sizes = {'top': 2048, 'side': 2048, 'kinematics': 256}
     else:
-        raise ValueError
-    # for now we assume nn.identity() is always passed as feature extractor
-    feature_sizes = {'top': 2048, 'side': 2048, 'kinematics': 36}
+        raise NotImplementedError
     dims = sum([feature_sizes[d] for d in args.data_types])
     if args.time_series_model == 'MSTCN':
         ts = MS_TCN
