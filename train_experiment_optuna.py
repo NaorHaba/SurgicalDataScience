@@ -55,7 +55,7 @@ def parsing():
     parser.add_argument('--use_gpu_num', default="0", type=str)
 
     parser.add_argument('--time_series_model', choices=['MSTCN', 'MSTCN++'], default='MSTCN++', type=str)
-    parser.add_argument('--feature_extractor', choices=['separate'], default='separate', type=str)
+    parser.add_argument('--feature_extractor', choices=['separate', 'linear_kinematics'], default='separate', type=str)
     parser.add_argument('--augmentation', default=True, type=bool)
     parser.add_argument('--flip_hands', default=True, type=bool)
 
@@ -99,7 +99,7 @@ def splits_dict(list_of_splits, data_path, folds_folder):
             vids_list.remove('P039_balloon2.csv')
         fold_sur_files = [os.path.join(fold_path, x.split('.')[0]) for x in vids_list]
         surgeries_per_fold[split] = fold_sur_files
-        fold_sur_augmented_files = [os.path.join(fold_path+'_augmentation', x.split('.')[0]) for x in vids_list]
+        fold_sur_augmented_files = [os.path.join(fold_path + '_augmentation', x.split('.')[0]) for x in vids_list]
         surgeries_augmented_per_fold[split] = fold_sur_augmented_files
         vids_per_fold[split] = vids_list
     return surgeries_per_fold, vids_per_fold, surgeries_augmented_per_fold
@@ -158,6 +158,7 @@ def eval_dict_func(args, device):
                  "gt_path_tools_right": gt_path_tools_right, "task": args.task_str}
     return eval_dict
 
+
 def reset_wandb_env():
     exclude = {
         "WANDB_PROJECT",
@@ -180,21 +181,22 @@ def main(trial):
     # args.num_layers = trial.suggest_int('num_layers', 5,7)
     # args.num_f_maps = trial.suggest_categorical('num_f_maps',[ 512, 1024,2048 ])
     # args.activation = trial.suggest_categorical('activation',['relu','lrelu','tanh' ])
-    args.time_series_model = trial.suggest_categorical('time_series_model',['MSTCN', 'MSTCN++' ])
+    args.feature_extractor = trial.suggest_categorical('feature_extractor', ['separate', 'linear_kinematics'])
+    args.time_series_model = trial.suggest_categorical('time_series_model', ['MSTCN', 'MSTCN++'])
     # args.lr = trial.suggest_float('lr',0.0001,0.1)
     # args.normalization = trial.suggest_categorical('normalization',  ['Min-max', 'Standard'])
-    args.augmentation = trial.suggest_categorical('augmentation',  [True, False])
-    args.task_str = trial.suggest_categorical('task_str',['gestures', 'gestures, tools_left, tools_right'])
-    data_types_str = trial.suggest_categorical('data_str', ['top,side,kinematics','top,side','top,kinematics',
-                                                            'side,kinematics','top','side','kinematics'])
+    args.augmentation = trial.suggest_categorical('augmentation', [True, False])
+    args.task_str = trial.suggest_categorical('task_str', ['gestures', 'gestures, tools_left, tools_right'])
+    data_types_str = trial.suggest_categorical('data_str', ['top,side,kinematics', 'top,side', 'top,kinematics',
+                                                            'side,kinematics', 'top', 'side', 'kinematics'])
     args.data_types = data_types_str.split(',')
-    args.data_names = [f'{x}_resnet.pt' if x!='kinematics' else f'{x}.npy' for x in args.data_types]
+    args.data_names = [f'{x}_resnet.pt' if x != 'kinematics' else f'{x}.npy' for x in args.data_types]
     print(args.data_names)
     set_seed()
     logger.info(args)  # TODO : what is this?
     os.environ["CUDA_VISIBLE_DEVICES"] = args.use_gpu_num
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print('device:' ,device)
+    print('device:', device)
     list_of_splits = args.test_split if args.test_split else list(range(5))
     experiment_name = args.group + " task:" + args.task_str
     args.group = experiment_name
@@ -205,11 +207,12 @@ def main(trial):
     #         os.makedirs(summaries_dir)
     # full_eval_results = pd.DataFrame()
     # full_train_results = pd.DataFrame()
-    surgeries_per_fold, vids_per_fold, surgeries_augmented_per_fold = splits_dict(list_of_splits, EXTRACTED_DATA_PATH, FOLDS_FOLDER_PATH)
+    surgeries_per_fold, vids_per_fold, surgeries_augmented_per_fold = splits_dict(list_of_splits, EXTRACTED_DATA_PATH,
+                                                                                  FOLDS_FOLDER_PATH)
     num_classes_list = []
     tasks = args.task_str.split(', ')
     for task in tasks:
-        num_classes_list += [GESTURES_NUM_CLASSES] if task=='gestures' else [TOOLS_NUM_CLASSES]
+        num_classes_list += [GESTURES_NUM_CLASSES] if task == 'gestures' else [TOOLS_NUM_CLASSES]
     args.num_classes_list = num_classes_list
     accs = []
     for split_num in list_of_splits:
@@ -222,9 +225,10 @@ def main(trial):
         #         os.makedirs(model_dir)
         train_surgery_list = [surgeries_per_fold[fold] if fold != split_num else [] for fold in surgeries_per_fold]
         if args.augmentation and ('top' in data_types_str or 'side' in data_types_str):
-            train_surgery_list += [surgeries_augmented_per_fold[fold] if fold != split_num else [] for fold in surgeries_augmented_per_fold]
+            train_surgery_list += [surgeries_augmented_per_fold[fold] if fold != split_num else [] for fold in
+                                   surgeries_augmented_per_fold]
         else:
-            args.augmentation=False
+            args.augmentation = False
         train_surgery_list = list(itertools.chain(*train_surgery_list))
         val_surgery_list = surgeries_per_fold[split_num]
         k_transform = Kinematics_Transformer(f'{STD_PARAMS_PATH}{split_num}.csv', args.normalization).transform
@@ -235,18 +239,20 @@ def main(trial):
         model = create_model(args)
         trainer = Trainer(num_classes=args.num_classes_list, model=model, task=tasks, device=device)
         eval_dict = eval_dict_func(args, device)
-        eval_results, train_results, best_results = trainer.train(dl_train, dl_val, num_epochs=args.num_epochs, learning_rate=args.lr,
-                                                    eval_dict=eval_dict, list_of_vids=vids_per_fold[split_num],
-                                                    args=args,test_split = split_num)
+        eval_results, train_results, best_results = trainer.train(dl_train, dl_val, num_epochs=args.num_epochs,
+                                                                  learning_rate=args.lr,
+                                                                  eval_dict=eval_dict,
+                                                                  list_of_vids=vids_per_fold[split_num],
+                                                                  args=args, test_split=split_num)
         accs.append(best_results['Acc gesture'])
     return np.mean(accs)
 
 # if not args.debugging:
-        #     eval_results = pd.DataFrame(eval_results)
-        #     train_results = pd.DataFrame(train_results)
-        #     eval_results = eval_results.add_prefix('split_' + str(split_num) + '_')
-        #     train_results = train_results.add_prefix('split_' + str(split_num) + '_')
-        #     full_eval_results = pd.concat([full_eval_results, eval_results], axis=1)
-        #     full_train_results = pd.concat([full_train_results, train_results], axis=1)
-        #     full_eval_results.to_csv(summaries_dir + "/evaluation_results.csv", index=False)
-        #     full_train_results.to_csv(summaries_dir + "/train_results.csv", index=False)
+#     eval_results = pd.DataFrame(eval_results)
+#     train_results = pd.DataFrame(train_results)
+#     eval_results = eval_results.add_prefix('split_' + str(split_num) + '_')
+#     train_results = train_results.add_prefix('split_' + str(split_num) + '_')
+#     full_eval_results = pd.concat([full_eval_results, eval_results], axis=1)
+#     full_train_results = pd.concat([full_train_results, train_results], axis=1)
+#     full_eval_results.to_csv(summaries_dir + "/evaluation_results.csv", index=False)
+#     full_train_results.to_csv(summaries_dir + "/train_results.csv", index=False)
