@@ -37,7 +37,7 @@ class Kinematics_Transformer():
 
 class FeatureDataset(Dataset):
     def __init__(self, surgery_folders: List, data_names: List, tasks: List, kinematics_transform=torch.tensor,
-                 image_transform=torch.tensor, target_transform=torch.tensor):
+                 image_transform=torch.tensor, target_transform=torch.tensor, flip_hands=True):
         assert surgery_folders and data_names and tasks, "must receive not empty lists"
         self.surgery_folders = surgery_folders
         self.data_names = data_names
@@ -45,14 +45,20 @@ class FeatureDataset(Dataset):
         self.kinematics_transform = kinematics_transform
         self.image_transform = image_transform
         self.target_transform = target_transform
+        self.flip_hands = flip_hands
 
     def __getitem__(self, item):
         surgery_folder = self.surgery_folders[item]
         features = {}
         labels = {}
         hands_loaded = False
+        left = 0
+        right=1
         surgery_vid_folder = str(surgery_folder)
         surgery_folder = re.sub('_augmentation','',surgery_folder)
+        if 'augmentation' in surgery_vid_folder and self.flip_hands:
+            left = 1
+            right= 0
         for data_t in self.data_names:
             if data_t.split('.')[-1] == 'pt':
                 features[data_t.split('_')[0]] = (torch.load(os.path.join(surgery_vid_folder, data_t))).squeeze()
@@ -76,9 +82,9 @@ class FeatureDataset(Dataset):
                                          for i in range(original_labels.shape[0])]).T
                     hands_loaded = True
                 if 'left' in task:
-                    labels[task] = np.expand_dims(hands[:,0], axis=1)
+                    labels[task] = np.expand_dims(hands[:,left], axis=1)
                 if 'right' in task:
-                    labels[task] = np.expand_dims(hands[:,1], axis=1)
+                    labels[task] = np.expand_dims(hands[:,right], axis=1)
             # labels[task] = np.array([np.array([int(original_labels[i, j][1]) for j in range(original_labels.shape[1])])
             #                          for i in range(original_labels.shape[0])]).T
             if self.target_transform:

@@ -57,6 +57,7 @@ def parsing():
     parser.add_argument('--time_series_model', choices=['MSTCN', 'MSTCN++'], default='MSTCN++', type=str)
     parser.add_argument('--feature_extractor', choices=['separate'], default='separate', type=str)
     parser.add_argument('--augmentation', default=True, type=bool)
+    parser.add_argument('--flip_hands', default=True, type=bool)
 
     parser.add_argument('--num_stages', default=3, type=int)
     parser.add_argument('--num_layers', default=7, type=int)
@@ -223,9 +224,9 @@ def main(trial):
         train_surgery_list = list(itertools.chain(*train_surgery_list))
         val_surgery_list = surgeries_per_fold[split_num]
         k_transform = Kinematics_Transformer(f'{STD_PARAMS_PATH}{split_num}.csv', args.normalization).transform
-        ds_train = FeatureDataset(train_surgery_list, args.data_names, tasks, k_transform)
+        ds_train = FeatureDataset(train_surgery_list, args.data_names, tasks, k_transform, flip_hands=args.flip_hands)
         dl_train = DataLoader(ds_train, batch_size=args.batch_size, collate_fn=collate_inputs)
-        ds_val = FeatureDataset(val_surgery_list, args.data_names, tasks, k_transform)
+        ds_val = FeatureDataset(val_surgery_list, args.data_names, tasks, k_transform, flip_hands=args.flip_hands)
         dl_val = DataLoader(ds_val, batch_size=args.batch_size, collate_fn=collate_inputs)
         model = create_model(args)
         trainer = Trainer(num_classes=args.num_classes_list, model=model, task=tasks, device=device)
