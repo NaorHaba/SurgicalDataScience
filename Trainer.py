@@ -26,8 +26,7 @@ class Trainer:
         self.task = task
 
     def train(self, train_data_loader, test_data_loader, num_epochs, learning_rate, eval_dict, list_of_vids, args,
-              test_split,
-              early_stop=8):
+              test_split,early_stop=8, loss_factor=0.15):
         # ** batch_gen changed to train_data_loader and test_data_loader
 
         # ** old -
@@ -106,7 +105,7 @@ class Trainer:
                         task_loss += self.ce(
                             p_stage.transpose(2, 1).contiguous().view(-1, self.num_classes_list[task_num]),
                             batch_target[self.task[task_num]].view(-1))
-                        task_loss += 0.2 * torch.mean(
+                        task_loss += loss_factor * torch.mean(
                             torch.clamp(
                                 self.mse(nn.functional.log_softmax(p_stage[:, :, 1:], dim=1),
                                          nn.functional.log_softmax(p_stage.detach()[:, :, :-1], dim=1)),

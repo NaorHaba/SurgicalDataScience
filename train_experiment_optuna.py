@@ -178,9 +178,9 @@ def main(trial):
     args = parsing()
     sample_rate = 6  # downsample the frequency to 5Hz - the data files created in feature_extractor use sample rate=6
     # args.dropout = trial.suggest_float('dropout', 0.05, 0.20)
-    # args.num_stages = trial.suggest_int('num_stages', 3, 6)
-    # args.num_layers = trial.suggest_int('num_layers', 5, 8)
-    # args.num_f_maps = trial.suggest_categorical('num_f_maps', [512, 1024, 2048])
+    args.num_stages = trial.suggest_int('num_stages', 3, 5)
+    args.num_layers = trial.suggest_int('num_layers', 7, 9)
+    args.num_f_maps = trial.suggest_categorical('num_f_maps', [1024, 2048])
     # args.activation = trial.suggest_categorical('activation', ['relu', 'lrelu', 'tanh'])
     # args.feature_extractor = trial.suggest_categorical('feature_extractor', ['separate', 'linear_kinematics'])
     # args.time_series_model = trial.suggest_categorical('time_series_model', ['MSTCN', 'MSTCN++'])
@@ -190,6 +190,7 @@ def main(trial):
     # args.task_str = trial.suggest_categorical('task_str', ['gestures', 'gestures, tools_left, tools_right'])
     # data_types_str = trial.suggest_categorical('data_str', ['top,side,kinematics', 'top,side', 'top,kinematics',
     #                                                         'side,kinematics', 'top', 'side', 'kinematics'])
+    args.loss_factor = trial.suggest_categorical('loss_factor', [0.2, 0.25, 0.3])
     data_types_str = 'top,side'
     args.data_types = data_types_str.split(',')
     args.data_names = [f'{x}_resnet.pt' if x != 'kinematics' else f'{x}.npy' for x in args.data_types]
@@ -217,43 +218,46 @@ def main(trial):
         num_classes_list += [GESTURES_NUM_CLASSES] if task == 'gestures' else [TOOLS_NUM_CLASSES]
     args.num_classes_list = num_classes_list
     accs = []
-    for split_num in list_of_splits:
-        # args.test_split = split_num
-        logger.info("working on split number: " + str(split_num))
-        reset_wandb_env()
-        # model_dir = "./models/" + args.dataset + "/" + experiment_name + "/split_" + split_num
-        # if not args.debugging:
-        #     if not os.path.exists(model_dir):
-        #         os.makedirs(model_dir)
-        train_surgery_list = [surgeries_per_fold[fold] if fold != split_num else [] for fold in surgeries_per_fold]
-        if args.augmentation and ('top' in data_types_str or 'side' in data_types_str):
-            train_surgery_list += [surgeries_augmented_per_fold[fold] if fold != split_num else [] for fold in
-                                   surgeries_augmented_per_fold]
-        else:
-            args.augmentation = False
-        train_surgery_list = list(itertools.chain(*train_surgery_list))
-        val_surgery_list = surgeries_per_fold[split_num]
-        k_transform = Kinematics_Transformer(f'{STD_PARAMS_PATH}{split_num}.csv', args.normalization).transform
-        ds_train = FeatureDataset(train_surgery_list, args.data_names, tasks, k_transform, flip_hands=args.flip_hands)
-        dl_train = DataLoader(ds_train, batch_size=args.batch_size, collate_fn=collate_inputs)
-        ds_val = FeatureDataset(val_surgery_list, args.data_names, tasks, k_transform, flip_hands=args.flip_hands)
-        dl_val = DataLoader(ds_val, batch_size=args.batch_size, collate_fn=collate_inputs)
-        model = create_model(args)
-        trainer = Trainer(num_classes=args.num_classes_list, model=model, task=tasks, device=device)
-        eval_dict = eval_dict_func(args, device)
-        eval_results, train_results, best_results = trainer.train(dl_train, dl_val, num_epochs=args.num_epochs,
-                                                                  learning_rate=args.lr,
-                                                                  eval_dict=eval_dict,
-                                                                  list_of_vids=vids_per_fold[split_num],
-                                                                  args=args, test_split=split_num)
-        accs.append(best_results['Acc gesture'])
-        if best_results['Acc gesture']<=77:
-            return np.mean(accs)
-    return np.mean(accs)
+    try:
+        for split_num in list_of_splits:
+            # args.test_split = split_num
+            logger.info("working on split number: " + str(split_num))
+            reset_wandb_env()
+            # model_dir = "./models/" + args.dataset + "/" + experiment_name + "/split_" + split_num
+            # if not args.debugging:
+            #     if not os.path.exists(model_dir):
+            #         os.makedirs(model_dir)
+            train_surgery_list = [surgeries_per_fold[fold] if fold != split_num else [] for fold in surgeries_per_fold]
+            if args.augmentation and ('top' in data_types_str or 'side' in data_types_str):
+                train_surgery_list += [surgeries_augmented_per_fold[fold] if fold != split_num else [] for fold in
+                                       surgeries_augmented_per_fold]
+            else:
+                args.augmentation = False
+            train_surgery_list = list(itertools.chain(*train_surgery_list))
+            val_surgery_list = surgeries_per_fold[split_num]
+            k_transform = Kinematics_Transformer(f'{STD_PARAMS_PATH}{split_num}.csv', args.normalization).transform
+            ds_train = FeatureDataset(train_surgery_list, args.data_names, tasks, k_transform, flip_hands=args.flip_hands)
+            dl_train = DataLoader(ds_train, batch_size=args.batch_size, collate_fn=collate_inputs, shuffle=True)
+            ds_val = FeatureDataset(val_surgery_list, args.data_names, tasks, k_transform, flip_hands=args.flip_hands)
+            dl_val = DataLoader(ds_val, batch_size=args.batch_size, collate_fn=collate_inputs)
+            model = create_model(args)
+            trainer = Trainer(num_classes=args.num_classes_list, model=model, task=tasks, device=device)
+            eval_dict = eval_dict_func(args, device)
+            eval_results, train_results, best_results = trainer.train(dl_train, dl_val, num_epochs=args.num_epochs,
+                                                                      learning_rate=args.lr,
+                                                                      eval_dict=eval_dict,
+                                                                      list_of_vids=vids_per_fold[split_num],
+                                                                      args=args, test_split=split_num, loss_factor=args.loss_factor)
+            accs.append(best_results['Acc gesture'])
+            if best_results['Acc gesture']<=77:
+                return np.mean(accs)
+        return np.mean(accs)
+    except:
+        return 0
 
 
-if __name__=='__main__':
-    accs= main('trial')
+# if __name__=='__main__':
+#     accs= main('trial')
 # if not args.debugging:
 #     eval_results = pd.DataFrame(eval_results)
 #     train_results = pd.DataFrame(train_results)
