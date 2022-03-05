@@ -37,9 +37,9 @@ def parsing():
 
     parser.add_argument('--dataset', choices=['APAS'], default="APAS")
     parser.add_argument('--data_types', choices=['top', 'side', 'kinematics'], nargs='+',
-                        default=['top', 'side', 'kinematics'])
+                        default=['top', 'side'])
     parser.add_argument('--data_names', choices=['top_resnet.pt', 'side_resnet.pt', 'kinematics.npy'], nargs='+',
-                        default=['top_resnet.pt', 'side_resnet.pt', 'kinematics.npy'])
+                        default=['top_resnet.pt', 'side_resnet.pt'])
     # parser.add_argument('--task', choices=[['gestures'],['gestures','tools_left','tools_right']], nargs='+', default=['gestures'])
     # parser.add_argument('--task', nargs='+', default=['gestures'])
     # parser.add_argument('--task', default=None)
@@ -55,12 +55,12 @@ def parsing():
     parser.add_argument('--use_gpu_num', default="0", type=str)
 
     parser.add_argument('--time_series_model', choices=['MSTCN', 'MSTCN++'], default='MSTCN++', type=str)
-    parser.add_argument('--feature_extractor', choices=['separate', 'linear_kinematics'], default='linear_kinematics', type=str)
+    parser.add_argument('--feature_extractor', choices=['separate', 'linear_kinematics'], default='separate', type=str)
     parser.add_argument('--augmentation', default=True, type=bool)
     parser.add_argument('--flip_hands', default=True, type=bool)
 
-    parser.add_argument('--num_stages', default=5, type=int)
-    parser.add_argument('--num_layers', default=8, type=int)
+    parser.add_argument('--num_stages', default=3, type=int)
+    parser.add_argument('--num_layers', default=10, type=int)
     parser.add_argument('--num_f_maps', default=1024, type=int)
     parser.add_argument('--activation', choices=['tanh'], default='tanh', type=str)
     parser.add_argument('--dropout', default=0.104, type=float)
@@ -68,7 +68,7 @@ def parsing():
     parser.add_argument('--eval_rate', default=1, type=int)
     parser.add_argument('--batch_size', default=6, type=int)
     parser.add_argument('--normalization', choices=['Standard'], default='Standard', type=str)
-    parser.add_argument('--lr', default=0.025, type=float)
+    parser.add_argument('--lr', default=0.0025, type=float)
     parser.add_argument('--num_epochs', default=150, type=int)
 
     args = parser.parse_args()
@@ -190,7 +190,7 @@ def main(trial):
     # args.task_str = trial.suggest_categorical('task_str', ['gestures', 'gestures, tools_left, tools_right'])
     # data_types_str = trial.suggest_categorical('data_str', ['top,side,kinematics', 'top,side', 'top,kinematics',
     #                                                         'side,kinematics', 'top', 'side', 'kinematics'])
-    data_types_str = 'top,side,kinematics'
+    data_types_str = 'top,side'
     args.data_types = data_types_str.split(',')
     args.data_names = [f'{x}_resnet.pt' if x != 'kinematics' else f'{x}.npy' for x in args.data_types]
     print(args.data_names)

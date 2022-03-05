@@ -25,7 +25,8 @@ class Trainer:
         self.num_classes_list = num_classes
         self.task = task
 
-    def train(self, train_data_loader, test_data_loader, num_epochs, learning_rate, eval_dict, list_of_vids, args,test_split,
+    def train(self, train_data_loader, test_data_loader, num_epochs, learning_rate, eval_dict, list_of_vids, args,
+              test_split,
               early_stop=8):
         # ** batch_gen changed to train_data_loader and test_data_loader
 
@@ -46,7 +47,7 @@ class Trainer:
                    name="split: " + str(test_split), entity=args.entity,  # ** we added entity, mode
                    mode=args.wandb_mode)
         # delattr(args, 'test_split')
-        wandb.config.update(args,allow_val_change=True)
+        wandb.config.update(args, allow_val_change=True)
         self.model.train()
         self.model.to(self.device)
         eval_rate = eval_dict["eval_rate"]
@@ -56,7 +57,7 @@ class Trainer:
         schedular = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=3, threshold=1e-2,
                                       threshold_mode='abs', verbose=True)
         best_acc = 0
-        best_results = {'Acc gesture': 0, 'epoch':0}
+        best_results = {'Acc gesture': 0, 'epoch': 0}
         steps_no_improve = 0
         for epoch in range(num_epochs):
             pbar = tqdm.tqdm(total=number_of_batches)
@@ -99,18 +100,21 @@ class Trainer:
 
                 # ** new -
                 # losses = []
-                for task_num,task_predictions in enumerate(predictions1):
-                    task_loss=0
+                for task_num, task_predictions in enumerate(predictions1):
+                    task_loss = 0
                     for p_stage in task_predictions:
-                        task_loss += self.ce(p_stage.transpose(2, 1).contiguous().view(-1, self.num_classes_list[task_num]), batch_target[self.task[task_num]].view(-1))
-                        task_loss += 0.15 * torch.mean(
+                        task_loss += self.ce(
+                            p_stage.transpose(2, 1).contiguous().view(-1, self.num_classes_list[task_num]),
+                            batch_target[self.task[task_num]].view(-1))
+                        task_loss += 0.2 * torch.mean(
                             torch.clamp(
-                                self.mse(nn.functional.log_softmax(p_stage[:, :, 1:], dim=1), nn.functional.log_softmax(p_stage.detach()[:, :, :-1], dim=1)),
-                                min=0,max=16) * mask[:,1:,0:p_stage.shape[1]].permute(0,2,1))
-                    if task_num ==0:
+                                self.mse(nn.functional.log_softmax(p_stage[:, :, 1:], dim=1),
+                                         nn.functional.log_softmax(p_stage.detach()[:, :, :-1], dim=1)),
+                                min=0, max=16) * mask[:, 1:, 0:p_stage.shape[1]].permute(0, 2, 1))
+                    if task_num == 0:
                         loss = task_loss
                     else:
-                        loss = loss+task_loss
+                        loss = loss + task_loss
                     # losses.append(task_loss)
                 # epoch_loss = 0
                 # for task_loss in losses:
@@ -178,7 +182,7 @@ class Trainer:
                 results.update(self.evaluate(eval_dict, test_data_loader, list_of_vids))
                 eval_results_list.append(results)
 
-                if results['Acc gesture']> best_results['Acc gesture']+5e-3:
+                if results['Acc gesture'] > best_results['Acc gesture'] + 5e-3:
                     best_results.update(results)
                     best_results['epoch'] = epoch
 
@@ -197,8 +201,7 @@ class Trainer:
                 if steps_no_improve >= early_stop:
                     break
 
-
-        wandb.log({f'best_{k}':v for k,v in best_results.items()})
+        wandb.log({f'best_{k}': v for k, v in best_results.items()})
         wandb.finish()
         return eval_results_list, train_results_list, best_results
 
