@@ -26,7 +26,7 @@ class Trainer:
         self.task = task
 
     def train(self, train_data_loader, test_data_loader, num_epochs, learning_rate, eval_dict, list_of_vids, args,test_split,
-              early_stop=11):
+              early_stop=8):
         # ** batch_gen changed to train_data_loader and test_data_loader
 
         # ** old -
@@ -53,7 +53,7 @@ class Trainer:
         optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
 
         # ** new -
-        schedular = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=5, threshold=1e-2,
+        schedular = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=3, threshold=1e-2,
                                       threshold_mode='abs', verbose=True)
         best_acc = 0
         best_results = {'Acc gesture': 0, 'epoch':0}
@@ -178,7 +178,7 @@ class Trainer:
                 results.update(self.evaluate(eval_dict, test_data_loader, list_of_vids))
                 eval_results_list.append(results)
 
-                if results['Acc gesture']> best_results['Acc gesture']+1e-2:
+                if results['Acc gesture']> best_results['Acc gesture']+5e-3:
                     best_results.update(results)
                     best_results['epoch'] = epoch
 
@@ -191,7 +191,6 @@ class Trainer:
                 torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "optimizer.h5"))
 
                 best_acc = acc
-                best_epoch = epoch
                 steps_no_improve = 0
             else:
                 steps_no_improve += 1

@@ -245,8 +245,8 @@ def main(trial):
                                                                   list_of_vids=vids_per_fold[split_num],
                                                                   args=args, test_split=split_num)
         accs.append(best_results['Acc gesture'])
-        # if split_num==0 and best_results['Acc gesture']<=70:
-        #     return best_results['Acc gesture']
+        if best_results['Acc gesture']<=77:
+            return np.mean(accs)
     return np.mean(accs)
 
 # if not args.debugging:
