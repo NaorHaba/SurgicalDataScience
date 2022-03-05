@@ -68,7 +68,7 @@ def parsing():
     parser.add_argument('--eval_rate', default=1, type=int)
     parser.add_argument('--batch_size', default=6, type=int)
     parser.add_argument('--normalization', choices=['Standard'], default='Standard', type=str)
-    parser.add_argument('--lr', default=0.0025, type=float)
+    parser.add_argument('--lr', default=0.025, type=float)
     parser.add_argument('--num_epochs', default=150, type=int)
 
     args = parser.parse_args()
