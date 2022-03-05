@@ -55,20 +55,20 @@ def parsing():
     parser.add_argument('--use_gpu_num', default="0", type=str)
 
     parser.add_argument('--time_series_model', choices=['MSTCN', 'MSTCN++'], default='MSTCN++', type=str)
-    parser.add_argument('--feature_extractor', choices=['separate', 'linear_kinematics'], default='separate', type=str)
+    parser.add_argument('--feature_extractor', choices=['separate', 'linear_kinematics'], default='linear_kinematics', type=str)
     parser.add_argument('--augmentation', default=True, type=bool)
     parser.add_argument('--flip_hands', default=True, type=bool)
 
-    parser.add_argument('--num_stages', default=3, type=int)
-    parser.add_argument('--num_layers', default=7, type=int)
-    parser.add_argument('--num_f_maps', default=1024, type=int)
+    parser.add_argument('--num_stages', default=5, type=int)
+    parser.add_argument('--num_layers', default=8, type=int)
+    parser.add_argument('--num_f_maps', default=2048, type=int)
     parser.add_argument('--activation', choices=['tanh'], default='tanh', type=str)
     parser.add_argument('--dropout', default=0.104, type=float)
 
     parser.add_argument('--eval_rate', default=1, type=int)
     parser.add_argument('--batch_size', default=6, type=int)
     parser.add_argument('--normalization', choices=['Standard'], default='Standard', type=str)
-    parser.add_argument('--lr', default=0.008766, type=float)
+    parser.add_argument('--lr', default=0.0025, type=float)
     parser.add_argument('--num_epochs', default=150, type=int)
 
     args = parser.parse_args()
@@ -112,7 +112,8 @@ def create_model(args):
         feature_sizes = {'top': 2048, 'side': 2048, 'kinematics': 36}
     elif args.feature_extractor == 'linear_kinematics':
         fe_params = {d + '_fe': nn.Identity() for d in args.data_types if d != 'kinematics'}
-        fe_params['kinematics'] = nn.Linear(36, 256)
+        fe_params['kinematics_fe'] = nn.Sequential(nn.Linear(36, 256), nn.LeakyReLU())
+        fe = SeperateFeatureExtractor(**fe_params)
         feature_sizes = {'top': 2048, 'side': 2048, 'kinematics': 256}
     else:
         raise NotImplementedError
@@ -176,19 +177,20 @@ def reset_wandb_env():
 def main(trial):
     args = parsing()
     sample_rate = 6  # downsample the frequency to 5Hz - the data files created in feature_extractor use sample rate=6
-    args.dropout = trial.suggest_float('dropout', 0.05, 0.20)
-    args.num_stages = trial.suggest_int('num_stages', 3, 6)
-    args.num_layers = trial.suggest_int('num_layers', 5, 8)
-    args.num_f_maps = trial.suggest_categorical('num_f_maps', [512, 1024, 2048])
+    # args.dropout = trial.suggest_float('dropout', 0.05, 0.20)
+    # args.num_stages = trial.suggest_int('num_stages', 3, 6)
+    # args.num_layers = trial.suggest_int('num_layers', 5, 8)
+    # args.num_f_maps = trial.suggest_categorical('num_f_maps', [512, 1024, 2048])
     # args.activation = trial.suggest_categorical('activation', ['relu', 'lrelu', 'tanh'])
-    args.feature_extractor = trial.suggest_categorical('feature_extractor', ['separate', 'linear_kinematics'])
+    # args.feature_extractor = trial.suggest_categorical('feature_extractor', ['separate', 'linear_kinematics'])
     # args.time_series_model = trial.suggest_categorical('time_series_model', ['MSTCN', 'MSTCN++'])
-    args.lr = trial.suggest_float('lr', 0.0001, 0.05)
+    # args.lr = trial.suggest_float('lr', 0.0001, 0.05)
     # args.normalization = trial.suggest_categorical('normalization', ['Min-max', 'Standard'])
     # args.augmentation = trial.suggest_categorical('augmentation', [True, False])
     # args.task_str = trial.suggest_categorical('task_str', ['gestures', 'gestures, tools_left, tools_right'])
-    data_types_str = trial.suggest_categorical('data_str', ['top,side,kinematics', 'top,side', 'top,kinematics',
-                                                            'side,kinematics', 'top', 'side', 'kinematics'])
+    # data_types_str = trial.suggest_categorical('data_str', ['top,side,kinematics', 'top,side', 'top,kinematics',
+    #                                                         'side,kinematics', 'top', 'side', 'kinematics'])
+    data_types_str = 'top,side,kinematics'
     args.data_types = data_types_str.split(',')
     args.data_names = [f'{x}_resnet.pt' if x != 'kinematics' else f'{x}.npy' for x in args.data_types]
     print(args.data_names)
@@ -249,6 +251,9 @@ def main(trial):
             return np.mean(accs)
     return np.mean(accs)
 
+
+if __name__=='__main__':
+    accs= main('trial')
 # if not args.debugging:
 #     eval_results = pd.DataFrame(eval_results)
 #     train_results = pd.DataFrame(train_results)
