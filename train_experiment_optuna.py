@@ -61,7 +61,7 @@ def parsing():
 
     parser.add_argument('--num_stages', default=5, type=int)
     parser.add_argument('--num_layers', default=8, type=int)
-    parser.add_argument('--num_f_maps', default=2048, type=int)
+    parser.add_argument('--num_f_maps', default=1024, type=int)
     parser.add_argument('--activation', choices=['tanh'], default='tanh', type=str)
     parser.add_argument('--dropout', default=0.104, type=float)
 

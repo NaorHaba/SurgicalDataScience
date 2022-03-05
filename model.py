@@ -5,8 +5,6 @@ import torch
 import torch.nn as nn
 
 
-
-
 # # input size = (B, F(2048), N(SURGERY))
 
 # #MULTI TASK
@@ -28,15 +26,14 @@ class MS_TCN_PP(nn.Module):
             stages.append(SS_TCN(dilations, dilation_layer, num_f_maps, in_dim, num_classes, **kw))
         self.stages = nn.ModuleList(stages)
 
-
     def forward(self, x, mask):
-        out = [out_task*mask for out_task in self.stages[0](x.clone().detach(), mask)]
+        out = [out_task * mask for out_task in self.stages[0](x.clone().detach(), mask)]
         outputs = [[out_task.unsqueeze(0)] for out_task in out]
         for s in self.stages[1:]:
             out = [self.softmax(out_task) * mask for out_task in out]
-            out = torch.cat(out,dim=1)
-            out = [out_task*mask for out_task in s(out, mask)]
-            outputs = [outputs[i]+[out_task.unsqueeze(0)] for i,out_task in enumerate(out)]
+            out = torch.cat(out, dim=1)
+            out = [out_task * mask for out_task in s(out, mask)]
+            outputs = [outputs[i] + [out_task.unsqueeze(0)] for i, out_task in enumerate(out)]
         return [torch.cat(outputs_task, dim=0) for outputs_task in outputs]
 
 
@@ -55,14 +52,15 @@ class MS_TCN(nn.Module):
         # self.stages = stages
 
     def forward(self, x, mask):
-        out = [out_task*mask for out_task in self.stages[0](x.clone().detach(), mask)]
+        out = [out_task * mask for out_task in self.stages[0](x.clone().detach(), mask)]
         outputs = [[out_task.unsqueeze(0)] for out_task in out]
         for s in self.stages[1:]:
             out = [self.softmax(out_task) * mask for out_task in out]
-            out = torch.cat(out,dim=1)
-            out = [out_task*mask for out_task in s(out, mask)]
-            outputs = [outputs[i]+[out_task.unsqueeze(0)] for i,out_task in enumerate(out)]
+            out = torch.cat(out, dim=1)
+            out = [out_task * mask for out_task in s(out, mask)]
+            outputs = [outputs[i] + [out_task.unsqueeze(0)] for i, out_task in enumerate(out)]
         return [torch.cat(outputs_task, dim=0) for outputs_task in outputs]
+
 
 class SS_TCN(nn.Module):
     def __init__(self, dilations, dilated_layer, num_f_maps, dim, num_classes, **kw):
@@ -80,8 +78,10 @@ class SS_TCN(nn.Module):
         out = self.gate_in(x) * mask
         for sub_stage in self.stage:
             out = sub_stage(out, mask)
-        outputs = [g(out.clone().detach())*mask for g in self.gate_out]
+        outputs = [g(out.clone().detach()) * mask for g in self.gate_out]
         return outputs
+
+
 # #
 # one task
 # class MS_TCN_PP(nn.Module):
@@ -202,14 +202,12 @@ class SurgeryModel(nn.Module):
         self.ts = time_series_model
 
     def forward(self, x, lengths, mask):
-        packed = {}
-        for input_name in x:
-            packed[input_name] = pack_padded_sequence(x[input_name], lengths, batch_first=True, enforce_sorted=False)
-        features = self.fe(packed)
-        features = torch.cat([pad_packed_sequence(f, batch_first=True)[0] for f in features], dim=-1)
-        features = features.permute(0, 2, 1)
         mask = mask.permute(0, 2, 1)
         mask = mask[:, 0, :].unsqueeze(1)
+        features = self.fe(x)
+        features = torch.cat(features, dim=-1)
+        features = features.permute(0, 2, 1)
+        features *= mask
         # packed_features = pack_padded_sequence(features, lengths, batch_first=True, enforce_sorted=False)
         # packed_result = self.ts(packed_features)
         # result = pad_packed_sequence(packed_result)
