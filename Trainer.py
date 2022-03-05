@@ -26,7 +26,7 @@ class Trainer:
         self.task = task
 
     def train(self, train_data_loader, test_data_loader, num_epochs, learning_rate, eval_dict, list_of_vids, args,
-              test_split,early_stop=8, loss_factor=0.15):
+              test_split,early_stop=8, loss_factor=0.15, T=16):
         # ** batch_gen changed to train_data_loader and test_data_loader
 
         # ** old -
@@ -109,7 +109,7 @@ class Trainer:
                             torch.clamp(
                                 self.mse(nn.functional.log_softmax(p_stage[:, :, 1:], dim=1),
                                          nn.functional.log_softmax(p_stage.detach()[:, :, :-1], dim=1)),
-                                min=0, max=16) * mask[:, 1:, 0:p_stage.shape[1]].permute(0, 2, 1))
+                                min=0, max=T) * mask[:, 1:, 0:p_stage.shape[1]].permute(0, 2, 1))
                     if task_num == 0:
                         loss = task_loss
                     else:

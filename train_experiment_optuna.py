@@ -33,7 +33,7 @@ ACTIVATIONS = {'relu': nn.ReLU, 'lrelu': nn.LeakyReLU, 'tanh': nn.Tanh}
 def parsing():
     dt_string = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     parser = argparse.ArgumentParser()
-    parser.add_argument('--tune_name', default="HPT_Tune_3")
+    parser.add_argument('--tune_name', default="HPT_Tune_4")
 
     parser.add_argument('--dataset', choices=['APAS'], default="APAS")
     parser.add_argument('--data_types', choices=['top', 'side', 'kinematics'], nargs='+',
@@ -63,12 +63,12 @@ def parsing():
     parser.add_argument('--num_layers', default=10, type=int)
     parser.add_argument('--num_f_maps', default=1024, type=int)
     parser.add_argument('--activation', choices=['tanh'], default='tanh', type=str)
-    parser.add_argument('--dropout', default=0.104, type=float)
+    parser.add_argument('--dropout', default=0.10402892383683587, type=float)
 
     parser.add_argument('--eval_rate', default=1, type=int)
     parser.add_argument('--batch_size', default=6, type=int)
     parser.add_argument('--normalization', choices=['Standard'], default='Standard', type=str)
-    parser.add_argument('--lr', default=0.0025, type=float)
+    parser.add_argument('--lr', default=0.00876569212062032, type=float)
     parser.add_argument('--num_epochs', default=150, type=int)
 
     args = parser.parse_args()
@@ -190,7 +190,9 @@ def main(trial):
     # args.task_str = trial.suggest_categorical('task_str', ['gestures', 'gestures, tools_left, tools_right'])
     # data_types_str = trial.suggest_categorical('data_str', ['top,side,kinematics', 'top,side', 'top,kinematics',
     #                                                         'side,kinematics', 'top', 'side', 'kinematics'])
-    args.loss_factor = trial.suggest_categorical('loss_factor', [0.2, 0.25, 0.3])
+    args.loss_factor = trial.suggest_categorical('loss_factor', [0.3, 0.35, 0.4])
+    args.T = trial.suggest_categorical('T', [9,16,25])
+
     data_types_str = 'top,side'
     args.data_types = data_types_str.split(',')
     args.data_names = [f'{x}_resnet.pt' if x != 'kinematics' else f'{x}.npy' for x in args.data_types]
@@ -247,7 +249,7 @@ def main(trial):
                                                                       learning_rate=args.lr,
                                                                       eval_dict=eval_dict,
                                                                       list_of_vids=vids_per_fold[split_num],
-                                                                      args=args, test_split=split_num, loss_factor=args.loss_factor)
+                                                                      args=args, test_split=split_num, loss_factor=args.loss_factor, T=args.T)
             accs.append(best_results['Acc gesture'])
             if best_results['Acc gesture']<=77:
                 return np.mean(accs)
