@@ -9,13 +9,6 @@
           </mappings>
         </serverdata>
       </paths>
-      <paths name="SDS">
-        <serverdata>
-          <mappings>
-            <mapping deploy="/home/student/Project" local="$PROJECT_DIR$" web="/" />
-          </mappings>
-        </serverdata>
-      </paths>
       <paths name="vmadmin@dagpu2021w-0005.eastus.cloudapp.azure.com:22">
         <serverdata>
           <mappings>
