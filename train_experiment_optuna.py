@@ -33,7 +33,7 @@ ACTIVATIONS = {'relu': nn.ReLU, 'lrelu': nn.LeakyReLU, 'tanh': nn.Tanh}
 def parsing():
     dt_string = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     parser = argparse.ArgumentParser()
-    parser.add_argument('--tune_name', default="HPT_Tune_4")
+    parser.add_argument('--tune_name', default="HPT_Tune_5")
 
     parser.add_argument('--dataset', choices=['APAS'], default="APAS")
     parser.add_argument('--data_types', choices=['top', 'side', 'kinematics'], nargs='+',
@@ -45,7 +45,7 @@ def parsing():
     # parser.add_argument('--task', default=None)
     parser.add_argument('--task_str', default='gestures, tools_left, tools_right')
 
-    parser.add_argument('--test_split', choices=[0, 1, 2, 3, 4], default=None)
+    parser.add_argument('--test_split', choices=[0, 1, 2, 3, 4], default=0)
 
     parser.add_argument('--wandb_mode', choices=['online', 'offline', 'disabled'], default='online', type=str)
     # parser.add_argument('--project', default="checks", type=str)
@@ -66,7 +66,7 @@ def parsing():
     parser.add_argument('--dropout', default=0.10402892383683587, type=float)
 
     parser.add_argument('--eval_rate', default=1, type=int)
-    parser.add_argument('--batch_size', default=6, type=int)
+    parser.add_argument('--batch_size', default=4, type=int)
     parser.add_argument('--normalization', choices=['Standard'], default='Standard', type=str)
     parser.add_argument('--lr', default=0.00876569212062032, type=float)
     parser.add_argument('--num_epochs', default=150, type=int)
@@ -178,8 +178,8 @@ def main(trial):
     args = parsing()
     sample_rate = 6  # downsample the frequency to 5Hz - the data files created in feature_extractor use sample rate=6
     # args.dropout = trial.suggest_float('dropout', 0.05, 0.20)
-    args.num_stages = trial.suggest_int('num_stages', 3, 5)
-    args.num_layers = trial.suggest_int('num_layers', 7, 9)
+    args.num_stages = trial.suggest_int('num_stages', 5, 9)
+    args.num_layers = trial.suggest_int('num_layers', 7, 13)
     args.num_f_maps = trial.suggest_categorical('num_f_maps', [1024, 2048])
     # args.activation = trial.suggest_categorical('activation', ['relu', 'lrelu', 'tanh'])
     # args.feature_extractor = trial.suggest_categorical('feature_extractor', ['separate', 'linear_kinematics'])
@@ -190,9 +190,10 @@ def main(trial):
     # args.task_str = trial.suggest_categorical('task_str', ['gestures', 'gestures, tools_left, tools_right'])
     # data_types_str = trial.suggest_categorical('data_str', ['top,side,kinematics', 'top,side', 'top,kinematics',
     #                                                         'side,kinematics', 'top', 'side', 'kinematics'])
-    args.loss_factor = trial.suggest_categorical('loss_factor', [0.3, 0.35, 0.4])
+    args.loss_factor = trial.suggest_categorical('loss_factor', [0.2,0.3, 0.35, 0.4])
     args.T = trial.suggest_categorical('T', [9,16,25])
-
+    args.hands_factor=trial.suggest_categorical('T', [0.5,0.75,1])
+    task_factor = [1]+2*[args.hands_factor]
     data_types_str = 'top,side'
     args.data_types = data_types_str.split(',')
     args.data_names = [f'{x}_resnet.pt' if x != 'kinematics' else f'{x}.npy' for x in args.data_types]
@@ -249,7 +250,7 @@ def main(trial):
                                                                       learning_rate=args.lr,
                                                                       eval_dict=eval_dict,
                                                                       list_of_vids=vids_per_fold[split_num],
-                                                                      args=args, test_split=split_num, loss_factor=args.loss_factor, T=args.T)
+                                                                      args=args, test_split=split_num, loss_factor=args.loss_factor, T=args.T, task_factor=task_factor)
             accs.append(best_results['Acc gesture'])
             if best_results['Acc gesture']<=77:
                 return np.mean(accs)
