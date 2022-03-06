@@ -33,7 +33,7 @@ ACTIVATIONS = {'relu': nn.ReLU, 'lrelu': nn.LeakyReLU, 'tanh': nn.Tanh}
 def parsing():
     dt_string = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     parser = argparse.ArgumentParser()
-    parser.add_argument('--tune_name', default="HPT_Tune_5")
+    parser.add_argument('--tune_name', default="HPT_split_0")
 
     parser.add_argument('--dataset', choices=['APAS'], default="APAS")
     parser.add_argument('--data_types', choices=['top', 'side', 'kinematics'], nargs='+',
