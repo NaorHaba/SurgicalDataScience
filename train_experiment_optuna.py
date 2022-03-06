@@ -192,7 +192,7 @@ def main(trial):
     #                                                         'side,kinematics', 'top', 'side', 'kinematics'])
     args.loss_factor = trial.suggest_categorical('loss_factor', [0.2,0.3, 0.35, 0.4])
     args.T = trial.suggest_categorical('T', [9,16,25])
-    args.hands_factor=trial.suggest_categorical('T', [0.5,0.75,1])
+    args.hands_factor=trial.suggest_categorical('hands_factor', [0.5,0.75,1])
     task_factor = [1]+2*[args.hands_factor]
     data_types_str = 'top,side'
     args.data_types = data_types_str.split(',')
