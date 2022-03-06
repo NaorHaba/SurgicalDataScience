@@ -86,11 +86,11 @@ def set_seed(seed=1538574472):
 
 # use the full temporal resolution @ 30Hz
 
-def splits_dict(list_of_splits, data_path, folds_folder):
+def splits_dict(data_path, folds_folder):
     surgeries_per_fold = {}
     vids_per_fold = {}
     surgeries_augmented_per_fold = {}
-    for split in list_of_splits:
+    for split in range(5):
         fold_path = os.path.join(data_path, 'fold_' + str(split))
         file_ptr = open(os.path.join(folds_folder, f'fold {split}.txt'), 'r')
         vids_list = file_ptr.read().split('\n')[:-1]
@@ -178,8 +178,8 @@ def main(trial):
     args = parsing()
     sample_rate = 6  # downsample the frequency to 5Hz - the data files created in feature_extractor use sample rate=6
     # args.dropout = trial.suggest_float('dropout', 0.05, 0.20)
-    args.num_stages = trial.suggest_int('num_stages', 5, 9)
-    args.num_layers = trial.suggest_int('num_layers', 7, 13)
+    args.num_stages = trial.suggest_int('num_stages', 7, 9)
+    args.num_layers = trial.suggest_int('num_layers', 9, 13)
     args.num_f_maps = trial.suggest_categorical('num_f_maps', [1024, 2048])
     # args.activation = trial.suggest_categorical('activation', ['relu', 'lrelu', 'tanh'])
     # args.feature_extractor = trial.suggest_categorical('feature_extractor', ['separate', 'linear_kinematics'])
@@ -190,7 +190,7 @@ def main(trial):
     # args.task_str = trial.suggest_categorical('task_str', ['gestures', 'gestures, tools_left, tools_right'])
     # data_types_str = trial.suggest_categorical('data_str', ['top,side,kinematics', 'top,side', 'top,kinematics',
     #                                                         'side,kinematics', 'top', 'side', 'kinematics'])
-    args.loss_factor = trial.suggest_categorical('loss_factor', [0.2,0.3, 0.35, 0.4])
+    args.loss_factor = trial.suggest_categorical('loss_factor', [0.3, 0.35, 0.4])
     args.T = trial.suggest_categorical('T', [9,16,25])
     args.hands_factor=trial.suggest_categorical('hands_factor', [0.5,0.75,1])
     task_factor = [1]+2*[args.hands_factor]
@@ -203,7 +203,8 @@ def main(trial):
     os.environ["CUDA_VISIBLE_DEVICES"] = args.use_gpu_num
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print('device:', device)
-    list_of_splits = [args.test_split] if args.test_split else list(range(5))
+    list_of_splits = [args.test_split] if args.test_split is not None else list(range(5))
+    print(list_of_splits)
     experiment_name = args.group + " task:" + args.task_str
     args.group = experiment_name
     logger.info(colored(experiment_name, "green"))
@@ -213,7 +214,7 @@ def main(trial):
     #         os.makedirs(summaries_dir)
     # full_eval_results = pd.DataFrame()
     # full_train_results = pd.DataFrame()
-    surgeries_per_fold, vids_per_fold, surgeries_augmented_per_fold = splits_dict(list_of_splits, EXTRACTED_DATA_PATH,
+    surgeries_per_fold, vids_per_fold, surgeries_augmented_per_fold = splits_dict(EXTRACTED_DATA_PATH,
                                                                                   FOLDS_FOLDER_PATH)
     num_classes_list = []
     tasks = args.task_str.split(', ')
