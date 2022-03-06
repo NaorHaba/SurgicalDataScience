@@ -53,7 +53,7 @@ class Trainer:
         optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
 
         # ** new -
-        schedular = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=3, threshold=1e-2,
+        schedular = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=5, threshold=1e-2,
                                       threshold_mode='abs', verbose=True)
         best_acc = 0
         best_results = {'Acc gesture': 0, 'epoch': 0}
