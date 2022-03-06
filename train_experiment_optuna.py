@@ -203,7 +203,7 @@ def main(trial):
     os.environ["CUDA_VISIBLE_DEVICES"] = args.use_gpu_num
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print('device:', device)
-    list_of_splits = args.test_split if args.test_split else list(range(5))
+    list_of_splits = [args.test_split] if args.test_split else list(range(5))
     experiment_name = args.group + " task:" + args.task_str
     args.group = experiment_name
     logger.info(colored(experiment_name, "green"))
@@ -252,8 +252,6 @@ def main(trial):
                                                                       list_of_vids=vids_per_fold[split_num],
                                                                       args=args, test_split=split_num, loss_factor=args.loss_factor, T=args.T, task_factor=task_factor)
             accs.append(best_results['Acc gesture'])
-            if best_results['Acc gesture']<=77:
-                return np.mean(accs)
         return np.mean(accs)
     except:
         return 0
