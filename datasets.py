@@ -1,3 +1,5 @@
+# In this file we implemented different Objects used to read and collate the data before using it in the model
+
 from typing import List
 import torch
 import numpy as np
@@ -5,10 +7,12 @@ import os
 from torch.utils.data import Dataset
 import pandas as pd
 import re
+
 STD_PARAMS_PATH = '/datashare/APAS/folds/std_params_fold_'
 
 
-class Kinematics_Transformer():
+# used to transform (normalize) the kinematic data
+class KinematicsTransformer:
     def __init__(self, params_path, normalization):
         params = pd.read_csv(params_path, index_col=0).values
         self.max = params[0, :]
@@ -35,6 +39,7 @@ class Kinematics_Transformer():
         return torch.tensor(features).float()
 
 
+# dataset for reading feature files we created in feature_extractor.py
 class FeatureDataset(Dataset):
     def __init__(self, surgery_folders: List, data_names: List, tasks: List, kinematics_transform=torch.tensor,
                  image_transform=torch.tensor, target_transform=torch.tensor, flip_hands=True):
@@ -53,12 +58,12 @@ class FeatureDataset(Dataset):
         labels = {}
         hands_loaded = False
         left = 0
-        right=1
+        right = 1
         surgery_vid_folder = str(surgery_folder)
-        surgery_folder = re.sub('_augmentation','',surgery_folder)
+        surgery_folder = re.sub('_augmentation', '', surgery_folder)
         if 'augmentation' in surgery_vid_folder and self.flip_hands:
             left = 1
-            right= 0
+            right = 0
         for data_t in self.data_names:
             if data_t.split('.')[-1] == 'pt':
                 features[data_t.split('_')[0]] = (torch.load(os.path.join(surgery_vid_folder, data_t))).squeeze()
@@ -69,24 +74,22 @@ class FeatureDataset(Dataset):
                 if self.kinematics_transform:
                     features[data_t.split('.')[0]] = self.kinematics_transform(features[data_t.split('.')[0]]).float()
         for task in self.tasks:
-            if task=='gestures':
+            if task == 'gestures':
                 original_labels = np.load(os.path.join(surgery_folder, task + '.npy'))
                 original_labels = np.expand_dims(original_labels, axis=0)
-                # if len(original_labels.shape) == 1 else original_labels
-                labels[task] =np.array([np.array([int(original_labels[i, j][1]) for j in range(original_labels.shape[1])])
-                                     for i in range(original_labels.shape[0])]).T
+                labels[task] = np.array(
+                    [np.array([int(original_labels[i, j][1]) for j in range(original_labels.shape[1])])
+                     for i in range(original_labels.shape[0])]).T
             else:
                 if not hands_loaded:
                     original_labels = np.load(os.path.join(surgery_folder, 'tools.npy'))
                     hands = np.array([np.array([int(original_labels[i, j][1]) for j in range(original_labels.shape[1])])
-                                         for i in range(original_labels.shape[0])]).T
+                                      for i in range(original_labels.shape[0])]).T
                     hands_loaded = True
                 if 'left' in task:
-                    labels[task] = np.expand_dims(hands[:,left], axis=1)
+                    labels[task] = np.expand_dims(hands[:, left], axis=1)
                 if 'right' in task:
-                    labels[task] = np.expand_dims(hands[:,right], axis=1)
-            # labels[task] = np.array([np.array([int(original_labels[i, j][1]) for j in range(original_labels.shape[1])])
-            #                          for i in range(original_labels.shape[0])]).T
+                    labels[task] = np.expand_dims(hands[:, right], axis=1)
             if self.target_transform:
                 labels[task] = self.target_transform(labels[task]).long()
         return features, labels
@@ -95,6 +98,7 @@ class FeatureDataset(Dataset):
         return len(self.surgery_folders)
 
 
+# collate function to pad a batch of surgeries together
 def collate_inputs(batch):
     input_lengths = []
     input_masks = []

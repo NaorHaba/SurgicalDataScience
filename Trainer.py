@@ -1,4 +1,4 @@
-# Created by Adam Goldbraikh - Scalpel Lab Technion
+# Created by Adam Goldbraikh - Scalpel Lab Technion (edited by Naor Haba and Lior Yariv :) )
 # parts of the code were adapted from: https://github.com/sj-li/MS-TCN2?utm_source=catalyzex.com
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
@@ -53,10 +53,16 @@ class Trainer:
         optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
 
         # ** new -
-        schedular = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=5, threshold=1e-2,
+        schedular = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=3, threshold=1e-2,
                                       threshold_mode='abs', verbose=True)
         best_acc = 0
-        best_results = {'Acc gesture': 0, 'epoch': 0}
+        best_results = {'Acc gesture': 0, 'epoch Acc': 0,
+                        'Edit gesture': 0, 'epoch Edit': 0,
+                        'F1-macro gesture': 0, 'epoch F1-macro': 0,
+                        'F1@10 gesture': 0, 'epoch F1@10': 0,
+                        'F1@25 gesture': 0, 'epoch F1@25': 0,
+                        'F1@50 gesture': 0, 'epoch F1@50': 0,
+                        }
         steps_no_improve = 0
         for epoch in range(num_epochs):
             pbar = tqdm.tqdm(total=number_of_batches)
@@ -114,15 +120,10 @@ class Trainer:
                         loss = task_loss
                     else:
                         loss = loss + task_loss
-                    # losses.append(task_loss)
-                # epoch_loss = 0
-                # for task_loss in losses:
-                #     task_loss.backward()
-                #     epoch_loss += task_loss.item()
+
                 epoch_loss += loss.item()
                 loss.backward()
                 optimizer.step()
-                # _, predicted1 = torch.max(predictions1[-1], 1)
                 _, predicted1 = torch.max(predictions1[0][-1], 1)
                 for i in range(len(lengths)):
                     correct1 += (predicted1[i][:lengths[i]] == batch_target_gestures[i][
@@ -182,16 +183,46 @@ class Trainer:
                 eval_results_list.append(results)
 
                 if results['Acc gesture'] > best_results['Acc gesture'] + 5e-3:
-                    best_results.update(results)
-                    best_results['epoch'] = epoch
+                    best_results['Acc gesture'] = results['Acc gesture']
+                    best_results['epoch Acc'] = epoch
+                    torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "Acc model.h5"))
+                    torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "Acc optimizer.h5"))
+
+                if results['Edit gesture'] > best_results['Edit gesture'] + 5e-3:
+                    best_results['Edit gesture'] = results['Edit gesture']
+                    best_results['epoch Edit'] = epoch
+                    torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "Edit model.h5"))
+                    torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "Edit optimizer.h5"))
+
+                if results['F1-macro gesture'] > best_results['F1-macro gesture'] + 5e-3:
+                    best_results['F1-macro gesture'] = results['F1-macro gesture']
+                    best_results['epoch F1-macro'] = epoch
+                    torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "F1-macro model.h5"))
+                    torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "F1-macro optimizer.h5"))
+
+                if results['F1@10 gesture'] > best_results['F1@10 gesture'] + 5e-3:
+                    best_results['F1@10 gesture'] = results['F1@10 gesture']
+                    best_results['epoch F1@10'] = epoch
+                    torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "F1@10 model.h5"))
+                    torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "F1@10 optimizer.h5"))
+
+                if results['F1@25 gesture'] > best_results['F1@25 gesture'] + 5e-3:
+                    best_results['F1@25 gesture'] = results['F1@25 gesture']
+                    best_results['epoch F1@25'] = epoch
+                    torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "F1@25 model.h5"))
+                    torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "F1@25 optimizer.h5"))
+
+                if results['F1@50 gesture'] > best_results['F1@50 gesture'] + 5e-3:
+                    best_results['F1@50 gesture'] = results['F1@50 gesture']
+                    best_results['epoch F1@50'] = epoch
+                    torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "F1@50 model.h5"))
+                    torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "F1@50 optimizer.h5"))
 
                 # if args.upload is True:  # **controlled by wandb mode
                 wandb.log(results)
 
-            # **new:
+            # ** new:
             if acc > best_acc + 1e-2:
-                torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "model.h5"))
-                torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "optimizer.h5"))
 
                 best_acc = acc
                 steps_no_improve = 0
