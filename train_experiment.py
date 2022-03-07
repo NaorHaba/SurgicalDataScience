@@ -47,8 +47,8 @@ def parsing():
 
     parser.add_argument('--time_series_model', choices=['MSTCN', 'MSTCN++'], default='MSTCN++', type=str)
     parser.add_argument('--feature_extractor', choices=['separate', 'linear_kinematics'], default='separate', type=str)
-    parser.add_argument('--augmentation', default=False, type=bool)
-    parser.add_argument('--flip_hands', default=False, type=bool)
+    parser.add_argument('--augmentation', default=True, type=bool)
+    parser.add_argument('--flip_hands', default=True, type=bool)
 
     parser.add_argument('--num_stages', default=5, type=int)
     parser.add_argument('--num_layers', default=9, type=int)
