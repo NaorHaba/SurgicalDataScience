@@ -1,5 +1,5 @@
 import optuna
-from train_experiment_optuna import main
+from train_experiment import main
 
 if __name__ == '__main__':
     # HPT_Tune_1

@@ -1,24 +1,19 @@
-# Created by Adam Goldbraikh - Scalpel Lab Technion
+# Created by Adam Goldbraikh - Scalpel Lab Technion (Edited by Naor Haba and Lior Yariv :) )
 # parts of the code were adapted from: https://github.com/sj-li/MS-TCN2?utm_source=catalyzex.com
-from functools import partial
-
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
 import numpy as np
 from Trainer import Trainer
-from batch_gen import BatchGenerator
 import os
 import argparse
-import pandas as pd
 from datetime import datetime
-from termcolor import colored, cprint
+from termcolor import colored
 import random
 import logging
 import itertools
 from datasets import FeatureDataset, collate_inputs, KinematicsTransformer
 from model import MS_TCN, MS_TCN_PP, SeperateFeatureExtractor, SurgeryModel
-import optuna
 
 logger = logging.getLogger(__name__)
 EXTRACTED_DATA_PATH = '/home/student/Project/data/'
@@ -40,15 +35,11 @@ def parsing():
                         default=['top', 'side'])
     parser.add_argument('--data_names', choices=['top_resnet.pt', 'side_resnet.pt', 'kinematics.npy'], nargs='+',
                         default=['top_resnet.pt', 'side_resnet.pt'])
-    # parser.add_argument('--task', choices=[['gestures'],['gestures','tools_left','tools_right']], nargs='+', default=['gestures'])
-    # parser.add_argument('--task', nargs='+', default=['gestures'])
-    # parser.add_argument('--task', default=None)
     parser.add_argument('--task_str', default='gestures, tools_left, tools_right')
 
     parser.add_argument('--test_split', choices=[0, 1, 2, 3, 4], default=None)
 
     parser.add_argument('--wandb_mode', choices=['online', 'offline', 'disabled'], default='online', type=str)
-    # parser.add_argument('--project', default="checks", type=str)
     parser.add_argument('--project', default="MSTCN_runs_fixed", type=str)
     parser.add_argument('--entity', default="surgical_data_science", type=str)
     parser.add_argument('--group', default=dt_string + " group ", type=str)
@@ -88,7 +79,6 @@ def set_seed(seed=1538574472):
 
 
 # use the full temporal resolution @ 30Hz
-
 def splits_dict(data_path, folds_folder):
     surgeries_per_fold = {}
     vids_per_fold = {}
@@ -98,7 +88,7 @@ def splits_dict(data_path, folds_folder):
         file_ptr = open(os.path.join(folds_folder, f'fold {split}.txt'), 'r')
         vids_list = file_ptr.read().split('\n')[:-1]
         file_ptr.close()
-        if split == 2: ## problems with annotations. Adam said we can ignore
+        if split == 2:  ## problems with annotations. Adam said we can ignore
             vids_list.remove('P039_balloon2.csv')
         fold_sur_files = [os.path.join(fold_path, x.split('.')[0]) for x in vids_list]
         surgeries_per_fold[split] = fold_sur_files
@@ -126,7 +116,6 @@ def create_model(args):
     else:
         ts = MS_TCN_PP
     activation = ACTIVATIONS[args.activation]
-    # num_stages, num_layers, num_f_maps, dim, num_classes, activation=nn.ReLU, dropout=0.1
     ts = ts(num_stages=args.num_stages, num_layers=args.num_layers, num_f_maps=args.num_f_maps, dim=dims,
             num_classes=args.num_classes_list, activation=activation, dropout=args.dropout)
     sm = SurgeryModel(fe, ts)
@@ -173,30 +162,11 @@ def reset_wandb_env():
     for k, v in os.environ.items():
         if k.startswith("WANDB_") and k not in exclude:
             del os.environ[k]
-    # if os.environ.get("WANDB_RUN_ID"):
-    #     del os.environ['WANDB_RUN_ID']
 
 
 def main(trial):
     args = parsing()
-    sample_rate = 6  # downsample the frequency to 5Hz - the data files created in feature_extractor use sample rate=6
-    # args.dropout = trial.suggest_float('dropout', 0.05, 0.20)
-    # args.num_stages = trial.suggest_int('num_stages', 7, 9)
-    # args.num_layers = trial.suggest_int('num_layers', 9, 13)
-    # args.num_f_maps = trial.suggest_categorical('num_f_maps', [1024, 2048])
-    # args.activation = trial.suggest_categorical('activation', ['relu', 'lrelu', 'tanh'])
-    # args.feature_extractor = trial.suggest_categorical('feature_extractor', ['separate', 'linear_kinematics'])
-    # args.time_series_model = trial.suggest_categorical('time_series_model', ['MSTCN', 'MSTCN++'])
-    # args.lr = trial.suggest_float('lr', 0.0001, 0.05)
-    # args.normalization = trial.suggest_categorical('normalization', ['Min-max', 'Standard'])
-    # args.augmentation = trial.suggest_categorical('augmentation', [True, False])
-    # args.task_str = trial.suggest_categorical('task_str', ['gestures', 'gestures, tools_left, tools_right'])
-    # data_types_str = trial.suggest_categorical('data_str', ['top,side,kinematics', 'top,side', 'top,kinematics',
-    #                                                         'side,kinematics', 'top', 'side', 'kinematics'])
-    # args.loss_factor = trial.suggest_categorical('loss_factor', [0.3, 0.35, 0.4])
-    # args.T = trial.suggest_categorical('T', [9,16,25])
-    # args.hands_factor=trial.suggest_categorical('hands_factor', [0.5,0.75,1])
-    task_factor = [1]+2*[args.hands_factor]
+    task_factor = [1] + 2 * [args.hands_factor]
     data_types_str = 'top,side'
     args.data_types = data_types_str.split(',')
     args.data_names = [f'{x}_resnet.pt' if x != 'kinematics' else f'{x}.npy' for x in args.data_types]
@@ -211,12 +181,6 @@ def main(trial):
     experiment_name = args.group + " task:" + args.task_str
     args.group = experiment_name
     logger.info(colored(experiment_name, "green"))
-    # summaries_dir = "./summaries/" + args.dataset + "/" + experiment_name
-    # if not args.debugging:
-    #     if not os.path.exists(summaries_dir):
-    #         os.makedirs(summaries_dir)
-    # full_eval_results = pd.DataFrame()
-    # full_train_results = pd.DataFrame()
     surgeries_per_fold, vids_per_fold, surgeries_augmented_per_fold = splits_dict(EXTRACTED_DATA_PATH,
                                                                                   FOLDS_FOLDER_PATH)
     num_classes_list = []
@@ -229,10 +193,6 @@ def main(trial):
         # args.test_split = split_num
         logger.info("working on split number: " + str(split_num))
         reset_wandb_env()
-        # model_dir = "./models/" + args.dataset + "/" + experiment_name + "/split_" + split_num
-        # if not args.debugging:
-        #     if not os.path.exists(model_dir):
-        #         os.makedirs(model_dir)
         train_surgery_list = [surgeries_per_fold[fold] if fold != split_num else [] for fold in surgeries_per_fold]
         if args.augmentation and ('top' in data_types_str or 'side' in data_types_str):
             train_surgery_list += [surgeries_augmented_per_fold[fold] if fold != split_num else [] for fold in
@@ -253,19 +213,12 @@ def main(trial):
                                                                   learning_rate=args.lr,
                                                                   eval_dict=eval_dict,
                                                                   list_of_vids=vids_per_fold[split_num],
-                                                                  args=args, test_split=split_num, loss_factor=args.loss_factor, T=args.T, task_factor=task_factor)
+                                                                  args=args, test_split=split_num,
+                                                                  loss_factor=args.loss_factor, T=args.T,
+                                                                  task_factor=task_factor)
         accs.append(best_results['Acc gesture'])
     return np.mean(accs)
 
 
-# if __name__=='__main__':
-#     accs= main('trial')
-# if not args.debugging:
-#     eval_results = pd.DataFrame(eval_results)
-#     train_results = pd.DataFrame(train_results)
-#     eval_results = eval_results.add_prefix('split_' + str(split_num) + '_')
-#     train_results = train_results.add_prefix('split_' + str(split_num) + '_')
-#     full_eval_results = pd.concat([full_eval_results, eval_results], axis=1)
-#     full_train_results = pd.concat([full_train_results, train_results], axis=1)
-#     full_eval_results.to_csv(summaries_dir + "/evaluation_results.csv", index=False)
-#     full_train_results.to_csv(summaries_dir + "/train_results.csv", index=False)
+if __name__ == '__main__':
+    accs = main('trial')
