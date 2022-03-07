@@ -98,7 +98,7 @@ def splits_dict(data_path, folds_folder):
         file_ptr = open(os.path.join(folds_folder, f'fold {split}.txt'), 'r')
         vids_list = file_ptr.read().split('\n')[:-1]
         file_ptr.close()
-        if split == 2:
+        if split == 2: ## problems with annotations. Adam said we can ignore
             vids_list.remove('P039_balloon2.csv')
         fold_sur_files = [os.path.join(fold_path, x.split('.')[0]) for x in vids_list]
         surgeries_per_fold[split] = fold_sur_files
