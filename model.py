@@ -1,4 +1,4 @@
-from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+# In this file we define our TCN based models
 import torch
 import torch.nn as nn
 
@@ -30,6 +30,7 @@ class MS_TCN_PP(nn.Module):  # MS_TCN++
             out = torch.cat(out, dim=1)
             out = [out_task * mask for out_task in s(out, mask)]
             outputs = [outputs[i] + [out_task.unsqueeze(0)] for i, out_task in enumerate(out)]
+        # attaching the results of all stages
         return [torch.cat(outputs_task, dim=0) for outputs_task in outputs]
 
 
@@ -55,6 +56,7 @@ class MS_TCN(nn.Module):
             out = torch.cat(out, dim=1)
             out = [out_task * mask for out_task in s(out, mask)]
             outputs = [outputs[i] + [out_task.unsqueeze(0)] for i, out_task in enumerate(out)]
+        # attaching the results of all stages
         return [torch.cat(outputs_task, dim=0) for outputs_task in outputs]
 
 
@@ -75,6 +77,7 @@ class SS_TCN(nn.Module):
         for sub_stage in self.stage:
             out = sub_stage(out, mask)
         outputs = [g(out.clone().detach()) * mask for g in self.gate_out]
+        # returning the results from all the heads
         return outputs
 
 
@@ -113,6 +116,7 @@ class DualDilatedResidualLayer(nn.Module):
         return (x + out) * mask
 
 
+# defining the final model which comprises a feature extractor and a time series model
 class SurgeryModel(nn.Module):
     def __init__(self, feature_extractor, time_series_model):
         super().__init__()
@@ -130,6 +134,7 @@ class SurgeryModel(nn.Module):
         return result
 
 
+# an object that utilizes given feature extractions for each input to extract and concat the features from all inputs
 class SeperateFeatureExtractor(nn.Module):
     def __init__(self, top_fe=None, side_fe=None, kinematics_fe=None):  # accepts 'nn.Identity'
         super().__init__()
