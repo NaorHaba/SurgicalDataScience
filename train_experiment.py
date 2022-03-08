@@ -13,7 +13,8 @@ import random
 import logging
 import itertools
 from datasets import FeatureDataset, collate_inputs, KinematicsTransformer
-from model import MS_TCN, MS_TCN_PP, SeperateFeatureExtractor, SurgeryModel
+from model import MS_TCN, MS_TCN_PP, SeperateFeatureExtractor, SurgeryModel,MT_RNN_dp
+
 
 logger = logging.getLogger(__name__)
 EXTRACTED_DATA_PATH = '/home/student/Project/data/'
@@ -28,13 +29,16 @@ ACTIVATIONS = {'relu': nn.ReLU, 'lrelu': nn.LeakyReLU, 'tanh': nn.Tanh}
 def parsing():
     dt_string = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     parser = argparse.ArgumentParser()
-    parser.add_argument('--tune_name', default="HPT_split_0")
+    parser.add_argument('--tune_name', default="LSTMS")
 
     parser.add_argument('--dataset', choices=['APAS'], default="APAS")
     parser.add_argument('--data_types', choices=['top', 'side', 'kinematics'], nargs='+',
-                        default=['top', 'side'])
+                        default=['kinematics'])
+    # parser.add_argument('--data_names', choices=['top_resnet.pt', 'side_resnet.pt', 'kinematics.npy'], nargs='+',
+    #                     default=['top_resnet.pt', 'side_resnet.pt'])
     parser.add_argument('--data_names', choices=['top_resnet.pt', 'side_resnet.pt', 'kinematics.npy'], nargs='+',
-                        default=['top_resnet.pt', 'side_resnet.pt'])
+                        default=['kinematics.npy'])
+
     parser.add_argument('--task_str', default='gestures, tools_left, tools_right')
 
     parser.add_argument('--test_split', choices=[0, 1, 2, 3, 4], default=None)
@@ -45,21 +49,26 @@ def parsing():
     parser.add_argument('--group', default=dt_string + " group ", type=str)
     parser.add_argument('--use_gpu_num', default="0", type=str)
 
-    parser.add_argument('--time_series_model', choices=['MSTCN', 'MSTCN++'], default='MSTCN++', type=str)
+    parser.add_argument('--time_series_model', choices=['MSTCN', 'MSTCN++','LSTM','GRU'], default='GRU', type=str)
     parser.add_argument('--feature_extractor', choices=['separate', 'linear_kinematics'], default='separate', type=str)
-    parser.add_argument('--augmentation', default=True, type=bool)
+    parser.add_argument('--augmentation', default=False, type=bool)
     parser.add_argument('--flip_hands', default=True, type=bool)
 
     parser.add_argument('--num_stages', default=5, type=int)
-    parser.add_argument('--num_layers', default=9, type=int)
+    parser.add_argument('--num_layers', default=11, type=int)
     parser.add_argument('--num_f_maps', default=1024, type=int)
     parser.add_argument('--activation', choices=['tanh'], default='tanh', type=str)
     parser.add_argument('--dropout', default=0.10402892383683587, type=float)
+    parser.add_argument('--num_layers_rnn', default=2, type=int)
+    parser.add_argument('--hidden_dim', default=64, type=int)
+    parser.add_argument('--bidirectional', default=True, type=bool)
+    parser.add_argument('--dropout_rnn', default=0.4, type=float)
 
     parser.add_argument('--eval_rate', default=1, type=int)
     parser.add_argument('--batch_size', default=4, type=int)
     parser.add_argument('--normalization', choices=['Standard'], default='Standard', type=str)
     parser.add_argument('--lr', default=0.00876569212062032, type=float)
+
     parser.add_argument('--num_epochs', default=150, type=int)
     parser.add_argument('--loss_factor', default=0.3, type=float)
     parser.add_argument('--T', default=9, type=int)
@@ -111,13 +120,22 @@ def create_model(args):
     else:
         raise NotImplementedError
     dims = sum([feature_sizes[d] for d in args.data_types])
-    if args.time_series_model == 'MSTCN':
-        ts = MS_TCN
-    else:
-        ts = MS_TCN_PP
+    print(dims)
     activation = ACTIVATIONS[args.activation]
-    ts = ts(num_stages=args.num_stages, num_layers=args.num_layers, num_f_maps=args.num_f_maps, dim=dims,
-            num_classes=args.num_classes_list, activation=activation, dropout=args.dropout)
+    if args.time_series_model == 'MSTCN':
+        ts = MS_TCN(num_stages=args.num_stages, num_layers=args.num_layers, num_f_maps=args.num_f_maps, dim=dims,
+                num_classes=args.num_classes_list, activation=activation, dropout=args.dropout)
+    elif args.time_series_model == 'MSTCN++':
+        ts = MS_TCN_PP(num_stages=args.num_stages, num_layers=args.num_layers, num_f_maps=args.num_f_maps, dim=dims,
+                num_classes=args.num_classes_list, activation=activation, dropout=args.dropout)
+    elif args.time_series_model == 'LSTM':
+        ts = MT_RNN_dp(rnn_type='LSTM', input_dim=dims, num_classes_list=args.num_classes_list,
+                       hidden_dim = args.hidden_dim, bidirectional = args.bidirectional,
+                       dropout = args.dropout_rnn, num_layers = args.num_layers_rnn)
+    else:
+        ts = MT_RNN_dp(rnn_type='GRU', input_dim=dims, num_classes_list=args.num_classes_list,
+                       hidden_dim = args.hidden_dim, bidirectional = args.bidirectional,
+                       dropout = args.dropout_rnn, num_layers = args.num_layers_rnn)
     sm = SurgeryModel(fe, ts)
     return sm
 
@@ -167,8 +185,8 @@ def reset_wandb_env():
 def main(trial):
     args = parsing()
     task_factor = [1] + 2 * [args.hands_factor]
-    data_types_str = 'top,side'
-    args.data_types = data_types_str.split(',')
+    # data_types_str = 'top,side'
+    # args.data_types = data_types_str.split(',')
     args.data_names = [f'{x}_resnet.pt' if x != 'kinematics' else f'{x}.npy' for x in args.data_types]
     print(args.data_names)
     set_seed()

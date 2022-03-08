@@ -185,20 +185,20 @@ class Trainer:
                 if results['Acc gesture'] > best_results['Acc gesture'] + 5e-3:
                     best_results['Acc gesture'] = results['Acc gesture']
                     best_results['epoch Acc'] = epoch
-                    torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "Acc model.h5"))
-                    torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "Acc optimizer.h5"))
+                    # torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "Acc model.h5"))
+                    # torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "Acc optimizer.h5"))
 
                 if results['Edit gesture'] > best_results['Edit gesture'] + 5e-3:
                     best_results['Edit gesture'] = results['Edit gesture']
                     best_results['epoch Edit'] = epoch
-                    torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "Edit model.h5"))
-                    torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "Edit optimizer.h5"))
+                    # torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "Edit model.h5"))
+                    # torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "Edit optimizer.h5"))
 
                 if results['F1-macro gesture'] > best_results['F1-macro gesture'] + 5e-3:
                     best_results['F1-macro gesture'] = results['F1-macro gesture']
                     best_results['epoch F1-macro'] = epoch
-                    torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "F1-macro model.h5"))
-                    torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "F1-macro optimizer.h5"))
+                    # torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "F1-macro model.h5"))
+                    # torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "F1-macro optimizer.h5"))
 
                 if results['F1@10 gesture'] > best_results['F1@10 gesture'] + 5e-3:
                     best_results['F1@10 gesture'] = results['F1@10 gesture']
@@ -209,14 +209,14 @@ class Trainer:
                 if results['F1@25 gesture'] > best_results['F1@25 gesture'] + 5e-3:
                     best_results['F1@25 gesture'] = results['F1@25 gesture']
                     best_results['epoch F1@25'] = epoch
-                    torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "F1@25 model.h5"))
-                    torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "F1@25 optimizer.h5"))
+                    # torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "F1@25 model.h5"))
+                    # torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "F1@25 optimizer.h5"))
 
                 if results['F1@50 gesture'] > best_results['F1@50 gesture'] + 5e-3:
                     best_results['F1@50 gesture'] = results['F1@50 gesture']
                     best_results['epoch F1@50'] = epoch
-                    torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "F1@50 model.h5"))
-                    torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "F1@50 optimizer.h5"))
+                    # torch.save(self.model.state_dict(), os.path.join(wandb.run.dir, "F1@50 model.h5"))
+                    # torch.save(optimizer.state_dict(), os.path.join(wandb.run.dir, "F1@50 optimizer.h5"))
 
                 # if args.upload is True:  # **controlled by wandb mode
                 wandb.log(results)
