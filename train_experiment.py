@@ -13,8 +13,7 @@ import random
 import logging
 import itertools
 from datasets import FeatureDataset, collate_inputs, KinematicsTransformer
-from model import MS_TCN, MS_TCN_PP, SeperateFeatureExtractor, SurgeryModel,MT_RNN_dp
-
+from model import MS_TCN, MS_TCN_PP, SeperateFeatureExtractor, SurgeryModel, MT_RNN_dp
 
 logger = logging.getLogger(__name__)
 EXTRACTED_DATA_PATH = '/home/student/Project/data/'
@@ -49,7 +48,7 @@ def parsing():
     parser.add_argument('--group', default=dt_string + " group ", type=str)
     parser.add_argument('--use_gpu_num', default="0", type=str)
 
-    parser.add_argument('--time_series_model', choices=['MSTCN', 'MSTCN++','LSTM','GRU'], default='GRU', type=str)
+    parser.add_argument('--time_series_model', choices=['MSTCN', 'MSTCN++', 'LSTM', 'GRU'], default='GRU', type=str)
     parser.add_argument('--feature_extractor', choices=['separate', 'linear_kinematics'], default='separate', type=str)
     parser.add_argument('--augmentation', default=False, type=bool)
     parser.add_argument('--flip_hands', default=True, type=bool)
@@ -124,18 +123,18 @@ def create_model(args):
     activation = ACTIVATIONS[args.activation]
     if args.time_series_model == 'MSTCN':
         ts = MS_TCN(num_stages=args.num_stages, num_layers=args.num_layers, num_f_maps=args.num_f_maps, dim=dims,
-                num_classes=args.num_classes_list, activation=activation, dropout=args.dropout)
+                    num_classes=args.num_classes_list, activation=activation, dropout=args.dropout)
     elif args.time_series_model == 'MSTCN++':
         ts = MS_TCN_PP(num_stages=args.num_stages, num_layers=args.num_layers, num_f_maps=args.num_f_maps, dim=dims,
-                num_classes=args.num_classes_list, activation=activation, dropout=args.dropout)
+                       num_classes=args.num_classes_list, activation=activation, dropout=args.dropout)
     elif args.time_series_model == 'LSTM':
         ts = MT_RNN_dp(rnn_type='LSTM', input_dim=dims, num_classes_list=args.num_classes_list,
-                       hidden_dim = args.hidden_dim, bidirectional = args.bidirectional,
-                       dropout = args.dropout_rnn, num_layers = args.num_layers_rnn)
+                       hidden_dim=args.hidden_dim, bidirectional=args.bidirectional,
+                       dropout=args.dropout_rnn, num_layers=args.num_layers_rnn)
     else:
         ts = MT_RNN_dp(rnn_type='GRU', input_dim=dims, num_classes_list=args.num_classes_list,
-                       hidden_dim = args.hidden_dim, bidirectional = args.bidirectional,
-                       dropout = args.dropout_rnn, num_layers = args.num_layers_rnn)
+                       hidden_dim=args.hidden_dim, bidirectional=args.bidirectional,
+                       dropout=args.dropout_rnn, num_layers=args.num_layers_rnn)
     sm = SurgeryModel(fe, ts)
     return sm
 
@@ -190,7 +189,7 @@ def main(trial):
     args.data_names = [f'{x}_resnet.pt' if x != 'kinematics' else f'{x}.npy' for x in args.data_types]
     print(args.data_names)
     set_seed()
-    logger.info(args)  # TODO : what is this?
+    logger.info(args)
     os.environ["CUDA_VISIBLE_DEVICES"] = args.use_gpu_num
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print('device:', device)
@@ -212,7 +211,7 @@ def main(trial):
         logger.info("working on split number: " + str(split_num))
         reset_wandb_env()
         train_surgery_list = [surgeries_per_fold[fold] if fold != split_num else [] for fold in surgeries_per_fold]
-        if args.augmentation and ('top' in data_types_str or 'side' in data_types_str):
+        if args.augmentation and ('top' in args.data_types or 'side' in args.data_types):
             train_surgery_list += [surgeries_augmented_per_fold[fold] if fold != split_num else [] for fold in
                                    surgeries_augmented_per_fold]
         else:

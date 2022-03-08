@@ -1,22 +1,14 @@
-import pickle
-from typing import List
+# In this file we define the functions for the offline feature extraction of the videos. The results are save on the machine.
 
 import torch
 import numpy as np
-import random
 import os
-import pandas as pd
-import torchvision
-from scipy.stats import norm
-from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, models
 import torch.nn as nn
 import pandas as pd
 from PIL import Image
 import tqdm
 
-
-# TODO: adjust for adam's code
 
 def extract_features(folds_folder, features_path, frames_path, sample_rate, features, labels_path, labels_type,
                      save_path='/home/student/Project/data'):
@@ -52,7 +44,7 @@ def create_dataset(extractor, folds_folder="/datashare/apas/folds", features_pat
                     os.mkdir(sur_dir)
                 if sur not in os.listdir(save_dir_name_aug):
                     os.mkdir(sur_dir_aug)
-                if sur == 'P039_balloon2': #ignored because of problems with annotation
+                if sur == 'P039_balloon2':  # ignored because of problems with annotation
                     continue
                 print(sur)
                 sur_frames_path = f'{frames_path}{sur}'
@@ -64,7 +56,8 @@ def create_dataset(extractor, folds_folder="/datashare/apas/folds", features_pat
                 if 'kinematics' in features:
                     k_array = np.load(features_path + sur + '.npy')
                     k_len = k_array.shape[1]
-                min_len = min(k_len, t_len, s_len) if sur != 'P020_balloon2' else 7405 # to avoid an error with P020_baloon.
+                min_len = min(k_len, t_len,
+                              s_len) if sur != 'P020_balloon2' else 7405  # to avoid an error with P020_baloon.
                 samples_ind = range(1, min_len, sample_rate)
                 df = pd.read_csv(f'{labels_path}_gestures/{sur}.txt', header=None, names=['start', 'end', 'label'],
                                  sep=' ')
@@ -84,7 +77,7 @@ def create_dataset(extractor, folds_folder="/datashare/apas/folds", features_pat
                     np.save(f'{sur_dir}/kinematics.npy', k_array_sampled)
                 if 'top' in features:
                     top_frames = surgery_frames(samples_ind, sur_frames_path, 'top')
-                    for dir, augment in [(sur_dir,False),(sur_dir_aug,True)]:
+                    for dir, augment in [(sur_dir, False), (sur_dir_aug, True)]:
                         top_frames_transformed = extractor.extractor_transform(top_frames, augment=augment)
                         top_frames_split = top_frames_transformed.split(125)
                         for i in range(len(top_frames_split)):
@@ -96,7 +89,7 @@ def create_dataset(extractor, folds_folder="/datashare/apas/folds", features_pat
                         torch.save(top_features, f'{dir}/top_resnet.pt')
                 if 'side' in features:
                     side_frames = surgery_frames(samples_ind, sur_frames_path, 'side')
-                    for dir, augment in [(sur_dir,False),(sur_dir_aug,True)]:
+                    for dir, augment in [(sur_dir, False), (sur_dir_aug, True)]:
                         side_frames_transformed = extractor.extractor_transform(side_frames, augment=augment)
                         side_frames_split = side_frames_transformed.split(125)
                         for i in range(len(side_frames_split)):
@@ -119,6 +112,7 @@ def surgery_frames(samples_ind, surgery_path, video_type):
         t_list.append(transformer(img).requires_grad_(False))
     return torch.stack(t_list)
 
+
 class Resnet_feature_extractor(nn.Module):
     """
     This class is the ResNet-50 based class used for feature extraction used in the advanced part of the project.
@@ -130,21 +124,18 @@ class Resnet_feature_extractor(nn.Module):
         super(Resnet_feature_extractor, self).__init__()
         self.resnet_model = models.resnet50(pretrained=True).to(device)
         self.device = device
-        self.transformations =  [transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)), transforms.Resize(
-                size=224), transforms.CenterCrop((224, 224))]
-        # self.transformer = transforms.Compose(
-        #     [transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)), transforms.Resize(
-        #         size=224), transforms.CenterCrop((224, 224))])
+        self.transformations = [transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)), transforms.Resize(
+            size=224), transforms.CenterCrop((224, 224))]
         # freeze all Renset parameters since we’re only optimizing the target image
         for param in self.resnet_model.parameters():
             param.requires_grad_(False)
 
     def extractor_transform(self, x, augment=False):
         if augment:
-            transformations = self.transformations.copy()+[transforms.functional.hflip]
+            transformations = self.transformations.copy() + [transforms.functional.hflip]
         else:
-            transformations=self.transformations.copy()
-        transformer =transforms.Compose(transformations)
+            transformations = self.transformations.copy()
+        transformer = transforms.Compose(transformations)
         return transformer(x)
 
     def forward(self, x):
@@ -166,6 +157,6 @@ if __name__ == '__main__':
     labels_type = ['gestures', 'tools']
     save_path = '/home/student/Project/data'
     print('creating data set')
-    create_dataset(extractor = extractor, folds_folder=folds_folder, features_path=features_path,
-                       frames_path=frames_path, sample_rate=sample_rate, features=features,
-                       labels_path=labels_path, labels_type=labels_type, save_path=save_path)
+    create_dataset(extractor=extractor, folds_folder=folds_folder, features_path=features_path,
+                   frames_path=frames_path, sample_rate=sample_rate, features=features,
+                   labels_path=labels_path, labels_type=labels_type, save_path=save_path)
