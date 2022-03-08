@@ -50,16 +50,16 @@ def parsing():
 
     parser.add_argument('--time_series_model', choices=['MSTCN', 'MSTCN++', 'LSTM', 'GRU'], default='GRU', type=str)
     parser.add_argument('--feature_extractor', choices=['separate', 'linear_kinematics'], default='separate', type=str)
-    parser.add_argument('--augmentation', default=False, type=bool)
+    parser.add_argument('--augmentation', default=True, type=bool)
     parser.add_argument('--flip_hands', default=True, type=bool)
 
     parser.add_argument('--num_stages', default=5, type=int)
-    parser.add_argument('--num_layers', default=11, type=int)
+    parser.add_argument('--num_layers', default=9, type=int)
     parser.add_argument('--num_f_maps', default=1024, type=int)
     parser.add_argument('--activation', choices=['tanh'], default='tanh', type=str)
     parser.add_argument('--dropout', default=0.10402892383683587, type=float)
-    parser.add_argument('--num_layers_rnn', default=2, type=int)
-    parser.add_argument('--hidden_dim', default=64, type=int)
+    parser.add_argument('--num_layers_rnn', default=4, type=int)
+    parser.add_argument('--hidden_dim', default=128, type=int)
     parser.add_argument('--bidirectional', default=True, type=bool)
     parser.add_argument('--dropout_rnn', default=0.4, type=float)
 
