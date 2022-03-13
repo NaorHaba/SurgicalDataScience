@@ -6,14 +6,12 @@ import argparse
 import random
 import numpy as np
 from metrics import pars_ground_truth
-from visualization import plot_seq_gestures, plot_legend
-from Trainer import Trainer
-from datetime import datetime
-from batch_gen import BatchGenerator
+from visualization import plot_seq_gestures
+from training.Trainer import Trainer
+from training.batch_gen import BatchGenerator
 from sklearn.metrics import confusion_matrix
 import seaborn as sns
 import matplotlib.pylab as plt
-import matplotlib.font_manager
 
 
 def get_gt(ground_truth_path,list_of_videos):

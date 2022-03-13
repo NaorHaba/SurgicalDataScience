@@ -12,7 +12,7 @@ from termcolor import colored
 import random
 import logging
 import itertools
-from datasets import FeatureDataset, collate_inputs, KinematicsTransformer
+from analysis.datasets import FeatureDataset, collate_inputs, KinematicsTransformer
 from model import MS_TCN, MS_TCN_PP, SeperateFeatureExtractor, SurgeryModel, MT_RNN_dp
 
 logger = logging.getLogger(__name__)

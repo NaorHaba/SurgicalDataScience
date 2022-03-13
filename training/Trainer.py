@@ -3,13 +3,9 @@
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from model import *
-import sys
 from torch import optim
-import math
-import pandas as pd
-from termcolor import colored, cprint
 
-from metrics import *
+from analysis.metrics import *
 import wandb
 from datetime import datetime
 import tqdm
