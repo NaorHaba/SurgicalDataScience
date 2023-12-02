@@ -11,3 +11,6 @@ To run the model on all the splits you need to run the `train_experiment.py` fil
 You can change any of the parameters in the args object to control the architecture and training parameters.
 
 Good Luck :)
+
+Results through WandB:
+![image](https://github.com/NaorHaba/SurgicalDataScience/assets/69202720/0dd9efe6-7974-4d7f-a3e2-2171189c2679)
